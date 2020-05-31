@@ -1,0 +1,66 @@
+68372
+Last definitions of 400953 are: 400945 in phase 1 40094c in phase 1 
+Last definitions of 400956 are: 400942 in phase 1 400953 in phase 1 
+Last definitions of 400961 are: 400956 in phase 1 40095a in phase 1 
+Last definitions of 400964 are: 400942 in phase 1 
+Last definitions of 400967 are: 400964 in phase 1 
+Last definitions of 400953 are: 400945 in phase 2 40094c in phase 2 
+Last definitions of 400956 are: 400964 in phase 1 400953 in phase 2 
+Last definitions of 400961 are: 400961 in phase 1 400956 in phase 2 40095a in phase 2 
+Last definitions of 400964 are: 400964 in phase 1 
+Last definitions of 400967 are: 400967 in phase 2 400964 in phase 2 
+Last definitions of 400953 are: 400945 in phase 3 40094c in phase 3 
+Last definitions of 400956 are: 400964 in phase 2 400953 in phase 3 
+Last definitions of 400961 are: 400961 in phase 2 400956 in phase 3 40095a in phase 3 
+    Marking 400961 from last def list of 400961
+    Marking 400956 from last def list of 400961
+    Marking 40095a from last def list of 400961
+    Marking 400961 from last def list of 400961
+    Marking 400956 from last def list of 400961
+    Marking 40095a from last def list of 400961
+    Marking 400956 from last def list of 400961
+    Marking 40095a from last def list of 400961
+    Marking 400942 from last def list of 400956
+    Marking 400953 from last def list of 400956
+    Marking 400945 from last def list of 400953
+    Marking 40094c from last def list of 400953
+    Marking 400964 from last def list of 400956
+    Marking 400953 from last def list of 400956
+    Marking 400945 from last def list of 400953
+    Marking 40094c from last def list of 400953
+    Marking 400964 from last def list of 400956
+    Marking 400953 from last def list of 400956
+    Marking 400945 from last def list of 400953
+    Marking 40094c from last def list of 400953
+Able to remove action 40093e push rbp at position 0 main 
+Able to remove action 40093f mov rbp, rsp at position 1 main 
+Saving action 400942 xor rax, rax position 2 main 
+Saving action 400945 lea rcx, ptr [rip+0x1d] position 3 main 
+Saving action 40094c lea rdx, ptr [rip-0xe] position 4 main 
+Saving action 400953 sub rcx, rdx position 5 main 
+Saving action 400956 imul rcx, rax position 6 main 
+Saving action 40095a lea rdx, ptr [rip+0x6] position 7 main 
+Saving action 400961 add byte ptr [rdx+0x1], cl position 8 main 
+Saving action 400964 inc rax position 9 main 
+Saving action 400967 jno 0xffffffffffffffde position 10 main 
+Saving action 400945 lea rcx, ptr [rip+0x1d] position 11 main 
+Saving action 40094c lea rdx, ptr [rip-0xe] position 12 main 
+Saving action 400953 sub rcx, rdx position 13 main 
+Saving action 400956 imul rcx, rax position 14 main 
+Saving action 40095a lea rdx, ptr [rip+0x6] position 15 main 
+Saving action 400961 add byte ptr [rdx+0x1], cl position 16 main 
+Saving action 400964 inc rax position 17 main 
+Saving action 400967 jno 0xffffffffffffffde position 18 main 
+Saving action 400945 lea rcx, ptr [rip+0x1d] position 19 main 
+Saving action 40094c lea rdx, ptr [rip-0xe] position 20 main 
+Saving action 400953 sub rcx, rdx position 21 main 
+Saving action 400956 imul rcx, rax position 22 main 
+Saving action 40095a lea rdx, ptr [rip+0x6] position 23 main 
+Saving action 400961 add byte ptr [rdx+0x1], cl position 24 main 
+2 removable actions
+23 contributing actions
+2 removable cfgInstructions
+23 saveable cfgInstructions
+2 iterations of outer loop
+
+2604

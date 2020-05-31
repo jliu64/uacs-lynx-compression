@@ -1,0 +1,20 @@
+This directory contains several drivers that operate using the taint library. Most of them are iterations of the bytecode extraction tool. This README pertains to that tool.
+
+To generate a dot file of the extracted bytecode, please do the following:
+1) Set up the environment using the setup.sh script in the directory above this one like so:
+      source setup.sh
+2) Take a trace of the interpreter running the input program of interest. See the REAME in the tracer directory on how to do that.
+3) Run the extract program in this directory. It minimally requires:
+      ./extract -t <trace> -s <source> 
+          <trace> - the trace file to extract from
+          <source> - the NAME of the interpreted program. For example, if you ran factorial.py, specify that and not a path to factorial.py.
+
+   There are a few additional options that can provide additional precision. These options include:
+        -d <addr list> - This option allows the user to specify a list of addresses that perform the dispatch. For example, the implementation of python installed on this machine (onyx) always dispatches at 523cb5.
+        -b <mem list> - this operation allows the user to specify the location of the bytecode in memory. This is a list of memory locations of the form addr[size].
+
+
+Example:
+    Say I have a trace, trace.out, of a python run on the program factorial.py. I also know the dispatch location of python, so I'll provide that as well. I would therefore run:
+
+    ./extract -t trace.out -s factorial.py -d 523cb5

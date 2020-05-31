@@ -1,0 +1,27 @@
+Self-Modifying code:
+    Simple self-modifying
+    Recursive
+    Single buffer used multiple times
+
+Recursive:
+    Simple recursive program like fibonnaci
+    Dynamic programming (memoization)
+
+Multithreaded:
+    Simple multithreaded programs in multiple languages.
+        Ex: Go, C, Java
+
+Native:
+    C program written in native assembly.
+        Can compare how CFG is structured compared to what we expect to see.
+
+Inline vs. Traditional function:
+    Have an inline function and an equivalent traditional function.
+        Would expect CFG to be the same for both?
+
+Jump/goto
+    Make Edsgar Djikstra roll over in his grave.
+
+Obfuscation
+    Run it through the MOVfuscator and then create the CFG.
+    Try other obfuscation tools?
