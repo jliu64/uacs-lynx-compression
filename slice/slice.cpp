@@ -1,10 +1,14 @@
 /*
-* File: sliceDriver.c
-* Description: TODO: Create slice.
-*
-*/
+ * File: slice.cpp
+ *
+ * This code implements the backward backward slicing algorithm described in:
+ *
+ *    B. Korel, Computation of Dynamic Program Slices for Unstructured Programs,
+ *    IEEE Transactions on Software Engineering vol. 23 no. 1, Jan. 1997,
+ *    pages 17-34.
+ *
+ */
 
-// Includes for the cfg construction code
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
@@ -39,8 +43,6 @@ extern "C" {
     #include <controlTransfer.h>
 }
 
-//SLICE CODE
-
 /*
  *  Function: getActionAtIndex
  *  Purpose: Return action at given index from trace
@@ -56,14 +58,36 @@ uint64_t getAddrFromAction(Action *action){
   return(action->instruction->event.ins.addr);
 }
 
-/*
-*  Function: isCmp
-*  Purpose: Determine if an x86 instruction is a test/cmp instruction
-*/
-int isCmp(Action *action){
+/*******************************************************************************
+ *                                                                             *
+ * isCmpIns, isPushIns, isPopIns: checking for specific x86 instruction types  *
+ *                                                                             *
+ *******************************************************************************/
+
+int isCmpIns(Action *action){
   xed_iclass_enum_t inst = action->curInfo->insClass;
-  cfgInstruction *instruction = action->instruction;
-  return(instruction->event.type == INS_EVENT && (inst == XED_ICLASS_TEST || inst == XED_ICLASS_CMP));
+  return (inst == XED_ICLASS_TEST || inst == XED_ICLASS_CMP);
+}
+
+uint8_t isPushIns(xed_iclass_enum_t inst){
+  uint8_t res = (inst == XED_ICLASS_PUSH
+		 || inst == XED_ICLASS_PUSHA
+		 || inst == XED_ICLASS_PUSHAD
+		 || inst == XED_ICLASS_PUSHF
+		 || inst == XED_ICLASS_PUSHFD
+		 || inst == XED_ICLASS_PUSHFQ);
+  return res;
+}
+
+uint8_t isPopIns(xed_iclass_enum_t inst){
+  uint8_t res = (inst == XED_ICLASS_POP
+		 || inst == XED_ICLASS_POPA
+		 || inst == XED_ICLASS_POPAD
+		 || inst == XED_ICLASS_POPF
+		 || inst == XED_ICLASS_POPFD
+		 || inst == XED_ICLASS_POPFQ
+		 || inst == XED_ICLASS_POPCNT);
+  return res;
 }
 
 /*
@@ -113,28 +137,39 @@ uint64_t getNextOfSameThread(SliceState *slice, uint64_t pos, uint32_t tid){
 }
 
 bool isCmpJumpBlock(SliceState *slice, uint64_t pos){
+  Action *act;
   uint64_t numActions = slice->numActions;
-  bool isACmp = isCmp(getActionAtIndex(slice, pos));
-  bool isInRange = (pos+1 < numActions); 
+  bool isACmp = isCmpIns(getActionAtIndex(slice, pos));
+  bool isInRange = (pos+1 < numActions);
+
   if(!isInRange || !isACmp){
     return false;
   }
-  uint64_t nextThreadInsPos = getNextOfSameThread(slice, pos+1, getActionAtIndex(slice, pos)->tid);
+
+  act = getActionAtIndex(slice, pos);
+  uint64_t nextThreadInsPos = getNextOfSameThread(slice, pos+1, act->tid);
+
   if(nextThreadInsPos >= numActions){
     return false;
   }
-  bool nextInsInThreadIsJump = isConditionalJump(getActionAtIndex(slice, nextThreadInsPos)->curInfo->insClass);
-  return(isACmp && nextInsInThreadIsJump);
+
+  act = getActionAtIndex(slice, nextThreadInsPos);
+  bool nextInsInThreadIsJump = isConditionalJump(act->curInfo->insClass);
+
+  return (isACmp && nextInsInThreadIsJump);
 }
 
 bool brokenCompJumpBlock(SliceState *slice, uint64_t pos){
-  bool firstHalfSeen = (getBlockSlice(slice, getActionAtIndex(slice, pos)) != NULL && isCmp(getActionAtIndex(slice, pos)));
+  bool firstHalfSeen = (getBlockSlice(slice, getActionAtIndex(slice, pos)) != NULL
+			&& isCmpIns(getActionAtIndex(slice, pos)));
   if(!firstHalfSeen){ // bail out early
     return false;
   }
-  blockSlice *nextJmpBBLInThread = getBlockSlice(slice, getActionAtIndex(slice, getNextOfSameThread(slice, pos+1, getActionAtIndex(slice, pos)->tid)));
+  blockSlice *nextJmpBBLInThread = getBlockSlice(slice,
+						 getActionAtIndex(slice, getNextOfSameThread(slice, pos+1, getActionAtIndex(slice, pos)->tid)));
   bool secondHalfNotSeen = (firstHalfSeen && nextJmpBBLInThread == NULL);
-  bool secondHalfIsNotMatch = (secondHalfNotSeen || (getBlockSlice(slice, getActionAtIndex(slice, pos)) != nextJmpBBLInThread));
+  bool secondHalfIsNotMatch = (secondHalfNotSeen
+			       || (getBlockSlice(slice, getActionAtIndex(slice, pos)) != nextJmpBBLInThread));
   return(secondHalfIsNotMatch);
 }
 
@@ -146,11 +181,13 @@ void buildBlocks(SliceState *slice){
   // Build list of blocks from list of actions
   uint64_t numActions = slice->numActions;
   uint64_t i, blockCounter;
+  
   for(i = 0, blockCounter = 0; i < numActions; i++){
     // Two cases to handle. Either we have created a block for the action(s) and should just update or still need to create a new block
     // CASE 1: Create a new block: two types of blocks (normal 1 ins block or cmp + jmp block)
     //         The second type of block is trickier to tell (i.e. both actions must been seen to update em)
-    if(getBlockSlice(slice, getActionAtIndex(slice, i)) == NULL || brokenCompJumpBlock(slice, i)){ // If we haven't seen this block before
+    if(getBlockSlice(slice, getActionAtIndex(slice, i)) == NULL
+       || brokenCompJumpBlock(slice, i)){ // If we haven't seen this block before
       // If-goto block (actions at i,i+1 go into one block)
       if(isCmpJumpBlock(slice, i)){
         uint64_t nextJump = getNextOfSameThread(slice, i+1, getActionAtIndex(slice, i)->tid);
@@ -200,29 +237,18 @@ void setAllNotMarkedOrVisited(SliceState *slice){
   }
 }
 
-uint8_t isPushIns(xed_iclass_enum_t inst){
-  uint8_t res = (inst == XED_ICLASS_PUSH || inst == XED_ICLASS_PUSHA || inst == XED_ICLASS_PUSHAD || inst == XED_ICLASS_PUSHF || inst == XED_ICLASS_PUSHFD || inst == XED_ICLASS_PUSHFQ);
-  return res;
-}
-
-uint8_t isPopIns(xed_iclass_enum_t inst){
-  uint8_t res = (inst == XED_ICLASS_POP || inst == XED_ICLASS_POPA || inst == XED_ICLASS_POPAD || inst == XED_ICLASS_POPF || inst == XED_ICLASS_POPFD || inst == XED_ICLASS_POPFQ || inst == XED_ICLASS_POPCNT);
-  return res;
-}
-
-void collectLastDefinitionsUsingCurAction(TaintState *backTaint, Action *curAction, std::map<uint64_t, Action *> &mapLabelToAction, uint8_t keepReg){
+void collectLastDefinitionsUsingCurAction(TaintState *backTaint,
+					  Action *curAction,
+					  std::map<uint64_t, Action *> &mapLabelToAction,
+					  uint8_t keepReg){
   // Forward Propagate any taint
   uint64_t taint = propagateForward(backTaint, &(curAction->instruction->event), curAction->curInfo, keepReg);
   // Walk through all labels to find last definitions
   uint64_t size = labelSize(backTaint, taint);
-  //printf("Label size is %ld\n", size);
   uint64_t *labelsInTaint = getSubLabels(backTaint, taint);
   for(uint64_t i = 0; i < size; i++){
     uint64_t label = labelsInTaint[i];
-    //printf("Found label %ld in label %ld returned from backwards propagate\n", label, taint);
-    
     if(mapLabelToAction.find(label) != mapLabelToAction.end()){
-      //printf("Found a last definition from label %ld. %lx is a last def of  %lx\n", label, mapLabelToAction[label]->instruction->event.ins.addr, curAction->instruction->event.ins.addr);
       Action *found = mapLabelToAction[label];
 
       // For PUSH, look for reg last def
@@ -230,7 +256,6 @@ void collectLastDefinitionsUsingCurAction(TaintState *backTaint, Action *curActi
         uint64_t regLabel = 0;
         regLabel = getCombinedRegTaint(backTaint, curAction->reg, curAction->tid, regLabel);
         if(regLabel == label){
-          //printf("Found REG label for our PUSH!, %ld %ld\n", regLabel, label);
           curAction->lastDefForRegOnPush = found;
         }
       }
@@ -246,23 +271,32 @@ void collectLastDefinitionsUsingCurAction(TaintState *backTaint, Action *curActi
   }
 }
 
-void taintRegOps(TaintState *backTaint, ReaderOp *op, Action *curAction, std::map<uint64_t, Action *> &mapLabelToAction, uint64_t actionLabel){
+void taintRegOps(TaintState *backTaint,
+		 ReaderOp *op,
+		 Action *curAction,
+		 std::map<uint64_t, Action *> &mapLabelToAction,
+		 uint64_t actionLabel){
   // Get parent reg from op->reg
   LynxReg parent = LynxReg2FullLynxReg(op->reg);
-  //printf("REGGGGG:%s=", LynxReg2Str(parent));
   taintReg(backTaint,(LynxReg) parent, curAction->tid, actionLabel);
-  //printf("Adding label %ld  to map to action %lx, Tainting reg op\n", actionLabel, curAction->instruction->event.ins.addr);
 }
 
-void taintMemOps(TaintState *backTaint, ReaderOp *op, Action *curAction, std::map<uint64_t, Action *> &mapLabelToAction, uint64_t actionLabel){
+void taintMemOps(TaintState *backTaint,
+		 ReaderOp *op,
+		 Action *curAction,
+		 std::map<uint64_t, Action *> &mapLabelToAction,
+		 uint64_t actionLabel){
   if(op->type != MEM_OP){
     return;
   }
   taintMem(backTaint, op->mem.addr, op->mem.size, actionLabel);
-  //printf("Adding label %ld  to map to action %lx, Tainting mem op\n", actionLabel, curAction->instruction->event.ins.addr);
 }
 
-void taintRegMemOps(TaintState *backTaint, ReaderOp *op, Action *curAction, std::map<uint64_t, Action *> &mapLabelToAction, uint64_t actionLabel){
+void taintRegMemOps(TaintState *backTaint,
+		    ReaderOp *op,
+		    Action *curAction,
+		    std::map<uint64_t, Action *> &mapLabelToAction,
+		    uint64_t actionLabel){
   if(op->type == REG_OP){
     taintRegOps(backTaint, op, curAction, mapLabelToAction, actionLabel);
   } else if(op->type == MEM_OP){
@@ -297,8 +331,10 @@ void taintDests(TaintState *backTaint, Action *curAction, std::map<uint64_t, Act
     if(!keepReg && canSkipTaintBecauseInsType(inst)){
       if(op->type == REG_OP){
         LynxReg parent = LynxReg2FullLynxReg(op->reg);
-        if(parent == LYNX_RSP || parent == LYNX_RIP || (parent == LYNX_RBP && (inst == XED_ICLASS_LEAVE || inst == XED_ICLASS_ENTER))){
-          //printf("We have a %s ins writing to %s\n", xed_iclass_enum_t2str(inst), LynxReg2Str(parent));
+        if(parent == LYNX_RSP
+	   || parent == LYNX_RIP
+	   || (parent == LYNX_RBP
+	       && (inst == XED_ICLASS_LEAVE || inst == XED_ICLASS_ENTER))){
           op = op->next; // HANDLE: RSP cases
           continue;
         }
@@ -316,8 +352,10 @@ void taintDests(TaintState *backTaint, Action *curAction, std::map<uint64_t, Act
     if(!keepReg && canSkipTaintBecauseInsType(inst)){
       if(op->type == REG_OP){
         LynxReg parent = LynxReg2FullLynxReg(op->reg);
-        if(parent == LYNX_RSP || parent == LYNX_RIP || (parent == LYNX_RBP && (inst == XED_ICLASS_LEAVE || inst == XED_ICLASS_ENTER))){
-          //printf("We have a %s ins writing to %s\n", xed_iclass_enum_t2str(inst), LynxReg2Str(parent));
+        if(parent == LYNX_RSP
+	   || parent == LYNX_RIP
+	   || (parent == LYNX_RBP
+	       && (inst == XED_ICLASS_LEAVE || inst == XED_ICLASS_ENTER))){
           op = op->next;
           continue;
         }
@@ -330,12 +368,10 @@ void taintDests(TaintState *backTaint, Action *curAction, std::map<uint64_t, Act
 
 void handlePush(Action *curAction, map<uint32_t, map<LynxReg, Action *>> &mapTIDToPushMap){
   mapTIDToPushMap[curAction->tid][curAction->reg] = curAction;
-  //printf("PUSH: PUSH writing to %s:%d\n", LynxReg2Str(curAction->reg), curAction->instruction->event.ins.tid); 
 }
 
 int handlePop(Action *curAction, map<uint32_t, map<LynxReg, Action *>> &mapTIDToPushMap){
   if(mapTIDToPushMap[curAction->tid].find(curAction->reg) == mapTIDToPushMap[curAction->tid].end()){
-    //printf("POP: No push to REG %s:%d\n", LynxReg2Str(curAction->reg), curAction->instruction->event.ins.tid);
     return 0;
   }
   Action *push = mapTIDToPushMap[curAction->tid][curAction->reg];
@@ -355,28 +391,23 @@ int handlePop(Action *curAction, map<uint32_t, map<LynxReg, Action *>> &mapTIDTo
         return 0;
       }
     }
-    //printf("POP: POP matching with push %s\n", LynxReg2Str(curAction->reg));
     return 1;
   }
   return 0;
 }
 
 void findAllLastDefinitions(SliceState *slice, Action *action, uint8_t keepReg){
-  // Get our taint state
   TaintState *backTaint = slice->taintState;
-  // We will need a mapping of labels to actions
   std::map<uint64_t, Action *> mapLabelToAction;
   std::map<uint32_t, map<LynxReg, Action *>> mapTIDToPushMap;
- // printf("Walking through all actions at positions n - 0 ending at position %ld \n", action->position);
+
   // Walk backwards through trace from slice starting position
   // Find all last definitions along the way for every action
   uint64_t position = action->position;
   uint64_t walk = 0;
   //printf("Starting\n");
   while(walk <= position){
-    // Grab our action
     action = getActionAtIndex(slice, walk);
-   // printf("Current action is %lx at %ld\n", getAddrFromAction(action), walk);
     if(action->instruction->event.type != EXCEPTION_EVENT){
       if(!keepReg && isPushIns(action->curInfo->insClass)){
         handlePush(action, mapTIDToPushMap);
@@ -393,11 +424,8 @@ void findAllLastDefinitions(SliceState *slice, Action *action, uint8_t keepReg){
         }
       }
       taintDests(backTaint, action, mapLabelToAction, keepReg);
-      //outputTaint(backTaint);
-      //printf("\n\n");
     }
-    // And move to next action
-    walk++;
+    walk++;    // move to next action
   }
 }
 
@@ -424,56 +452,50 @@ void markRemainingActions(SliceState *slice, uint64_t posi, set<Action *> contri
 
 void findContributing(SliceState *slice, set<Action *> &markedAndNotVisited){
   while(!markedAndNotVisited.empty()){
-    // Get a marked + nonvisited action from the set
     Action *current = *markedAndNotVisited.begin();
-    //printf("Got %lx from marked set\n", getAddrFromAction(current));
-    // Visit it
     slice->visited.insert(current);
-    // Add into set of contributing actions
     slice->contributing.insert(current);
+
     // Go through and mark all actions in lastDef list
     for(Action *lastDef : current->lastDefList){
-      //printf("    Considering %lx from last def list of %lx position %ld\n", getAddrFromAction(lastDef), getAddrFromAction(current), current->position);
       markAction(slice, lastDef);
       // Optimization to add into markedAndNotVisited WITHOUT a set_diff
       // If this action is not yet visited, add into markedAndNotVisited set
       if(slice->visited.find(lastDef) == slice->visited.end()){
         markedAndNotVisited.insert(lastDef);
-        //printf("    Marking %lx from last def list of %lx\n", getAddrFromAction(lastDef), getAddrFromAction(current));
       } else {
         slice->contributing.insert(lastDef);
       }
     }
+
     // For all blocks, see if action is a part-of the block and remove block from set if so
     //blockSlice *block = getBlockSlice(slice, getActionAtIndex(slice, current->position));
     blockSlice *block = current->bbl;
-    //printf("      Saving block %ld from remove set due to residence of action %lx as a last def\n", block->id, getAddrFromAction(current));
     slice->removableBlocks.erase(block);
 
     // At this point current has been visited
     markedAndNotVisited.erase(current);
-    //printf("%ld is size of markedAndNotVisited set\n", markedAndNotVisited.size());
-    //printf("%ld is size of marked set\n", slice->marked.size());
   }
- // printf("%ld is size of marked set\n", slice->marked.size());
- // printf("One iteration of find contributing has finished\n");
 }
 
 bool isREntry(SliceState *slice, Action *action){
   // Check if previous action was a jump
   if(action->position >= 1){
     xed_iclass_enum_t prevIns = getActionAtIndex(slice, action->position-1)->curInfo->insClass;
-    if((isConditionalJump(prevIns) && !(StraightLineCode(getActionAtIndex(slice, action->position-1)->instruction->event.ins, action->instruction->event.ins))) || isUnconditionalJump(prevIns)){
-      return(false);
+    if((isConditionalJump(prevIns)
+	&& !(StraightLineCode(getActionAtIndex(slice, action->position-1)->instruction->event.ins,
+			      action->instruction->event.ins)))
+       || isUnconditionalJump(prevIns)){
+      return false;
     }
   }
   // Now see if this action is at a start of a block
   // NOTE: We are using the cfg instruction as many actions can map to one cfgInstruction
   // Actions can be duplicated, cfgInstructions are not
   if(getActionAtIndex(slice, action->bbl->start)->instruction == action->instruction){
-    return(true);
+    return true;
   }
-  return(false);
+  return false;
 }
 
 bool isRExit(SliceState *slice, Action *exitAction){
@@ -484,8 +506,10 @@ bool isRExit(SliceState *slice, Action *exitAction){
   }
   if(isUnconditionalJump(exitAction->curInfo->insClass)){
     return false;
-  } else if(isConditionalJump(exitAction->curInfo->insClass) && (position+1 < slice->numActions) &&\
-            !(StraightLineCode(exitAction->instruction->event.ins, (getActionAtIndex(slice, position+1)->instruction->event.ins)))){
+  } else if(isConditionalJump(exitAction->curInfo->insClass)
+	    && (position+1 < slice->numActions)
+	    && !(StraightLineCode(exitAction->instruction->event.ins,
+				  (getActionAtIndex(slice, position+1)->instruction->event.ins)))){
     return false;
   }
   return true;
@@ -494,7 +518,6 @@ bool isRExit(SliceState *slice, Action *exitAction){
 // RExit is instruction immediately after a block ends,
 // where the previous action is not a jump
 Action *findNearestRExit(SliceState *slice, Action *from, uint64_t stop){
-  //printf("  Scanning for rexit between %ld and %ld\n", from->position, stop);
   uint64_t position = from->position;
   Action *nearestRExitAct = NULL;
   // Search for exit
@@ -503,10 +526,8 @@ Action *findNearestRExit(SliceState *slice, Action *from, uint64_t stop){
   while(position < stop){
     exitActionTest = getActionAtIndex(slice, position);
     // Check if its a jump exit
-    //printf("    Scanning: Observing action at pos %ld: is rexit: \n", position);
     if(isRExit(slice, exitActionTest)){
       nearestRExitAct = exitActionTest;
-      //printf("    Scanning: next r-exit found at %ld\n", nearestRExitAct->position);
     }
     position++;
   }
@@ -524,7 +545,6 @@ set<Action *> findNonContributing(SliceState *slice, uint64_t sliceSpot){
     Action *current = getActionAtIndex(slice, posi);
     // If our action isn't in the contributing set and is at an RENTRY
     if(slice->contributing.find(current) == slice->contributing.end() && isREntry(slice, current)){
-      //printf("%lx is being considered for non contributing\n", getAddrFromAction(current));
       // Find nearest contributing action
       uint64_t nearestContribPos = posi+1;
       while(slice->contributing.find(getActionAtIndex(slice, nearestContribPos)) == slice->contributing.end()){
@@ -534,7 +554,6 @@ set<Action *> findNonContributing(SliceState *slice, uint64_t sliceSpot){
       if(nearestContribPos > posi && nearestContribPos <= sliceSpot){
         // Grab it. The position it resides at is walk
         Action *contributingNearest = getActionAtIndex(slice, nearestContribPos);
-        //printf("  %lx  at position %ld has found a nearest contributing action %lx\n", getAddrFromAction(current), posi, getAddrFromAction(contributingNearest));
         // We know that current is at an R entry (see above)
         // Try to find nearest r-exit between our selected r-entry and the contributing action
         Action *rexit = findNearestRExit(slice, current, nearestContribPos);
@@ -543,7 +562,6 @@ set<Action *> findNonContributing(SliceState *slice, uint64_t sliceSpot){
         uint64_t nonContribWalk = posi;
         // Now check if there is a closest rexit of current->bbl before our contributing action
         if(rexit != NULL && rexit->position <= contributingNearest->position){
-          //printf("  %lx has found an r-exit %lx before the contributing action %lx\n", getAddrFromAction(current), getAddrFromAction(rexit), getAddrFromAction(contributingNearest));
           // Add Instructions to temp set
           while(nonContribWalk < rexit->position){ // grabz
             nonContributing.insert(getActionAtIndex(slice, nonContribWalk));
@@ -652,30 +670,24 @@ SliceState *compute_slice(SlicedriverState *driver_state){
   slice->numActions = numActions;
   slice->readerState = rState;
   slice->taintState = backTaint;
-  // Build blocks
+
   buildBlocks(slice);
-  // Set all actions in Trace as unmarked/unvisited
   setAllNotMarkedOrVisited(slice);
-  // Find last defitions
-  //printf("Finding last defs\n");
   findAllLastDefinitions(slice, startOfSlice, driver_state->keepReg);
-  // Walk through and print all last definisitons
-  //printLastDefs(slice, numActions);
+
   // Mark the start of our slice (its not visited yet though)
-  //printf("Marking\n");
   markAction(slice, startOfSlice);
+
   // Get our set of marked + not visited actions
   set<Action *> markedAndNotVisited;
   set<Action *> nonContributing;
   markedAndNotVisited.insert(startOfSlice);
-  // And loop until there does not exist a marked and not visited action
+
+  // loop until there does not exist a marked and not visited action
   uint64_t iterationsOuter = 0;
   do {
-    // Find contributing
     findContributing(slice, markedAndNotVisited);
-    // Find non-contributing
     nonContributing = findNonContributing(slice, startOfSlice->position);
-    // Mark remaining actions
     markRemainingActions(slice, startOfSlice->position, slice->contributing, nonContributing); 
     // Set subtraction of marked - visited = how many marked + nonvisited actions we have
     markedAndNotVisited.clear();
@@ -692,7 +704,8 @@ SliceState *compute_slice(SlicedriverState *driver_state){
       remove++;
       if(act->instruction->event.type != EXCEPTION_EVENT){
         if(slice->contributing.find(act) != slice->contributing.end()){
-          printf("CONFLICT %lx %s is both in contributing and removable!\n", getAddrFromAction(act), act->curInfo->mnemonic);
+          printf("CONFLICT %lx %s is both in contributing and removable!\n",
+		 getAddrFromAction(act), act->curInfo->mnemonic);
           exit(1);
         }
       }
