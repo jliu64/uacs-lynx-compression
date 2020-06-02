@@ -1,25 +1,24 @@
-.PHONY: clean
+# This make file can be used to create both statically-linked and
+# dynamically-linked versions of the library; by default, it creates
+# a statically-linked one.  Alternatively, the appropriate one can
+# be created by specifying the particular make file to use:
+#
+# for a statically-linked library: use Makefile-static
+# for a dynamically-linked library: use Makefile-dynamic
 
-CXX = g++
-CC = gcc
-XEDPATH = ../../xed
-CFILES =  ../shared/LynxReg.c ByteMemoryTaint.c ByteRegTaint.c Taint.c BytePropagation.c ConstPropagation.c
-CXXFILES = LabelStore.cpp
-OFILES = $(CFILES:c=o) $(CXXFILES:cpp=o)
-CFLAGS = -Wall -g -fpic -c
-CXXFLAGS = -Wall -g -fpic -c -std=c++11
-INCLUDES = -I$(XEDPATH)/obj -I$(XEDPATH)/include/public/xed -I../shared -I../reader
-LDFLAGS = -shared -g -L$(XEDPATH)/obj -L../reader
-LIBS = -lxed -ltrd
+#libtaint.a : a statically-linked version of the taint library
+libtaint.a :
+	make clean; /bin/rm -f libtaint.a; make -f Makefile-static
 
-%.o: %.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $<
+# libtaint.so : a dynamically-linked version of the taint library
+libtaint.so :
+	make clean; /bin/rm -f libtaint.so; make -f Makefile-dynamic
 
-%.o: %.c
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $<
-
-libtaint.so: $(OFILES)
-	$(CXX) $(LDFLAGS) -o $@ $^ $(LIBS)
+.PHONY: all clean realclean
+all : libtaint.so libtaint.a
 
 clean:
-	rm -f ../shared/*.o *.o libtaint.so
+	/bin/rm -f *.BAK *~ *.o
+
+realclean:
+	/bin/rm -f *.BAK *~ *.o libtaint.so libtaint.a
