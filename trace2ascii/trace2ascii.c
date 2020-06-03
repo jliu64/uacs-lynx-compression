@@ -225,18 +225,7 @@ int main(int argc, char *argv[]) {
 
   uint64_t n = 0;
   while (nextEvent(readerState, &curEvent)) {
-    if (curEvent.type == EXCEPTION_EVENT) {
-      fflush(stdout);
-      printf("EXCEPTION %d at %llx\n",
-	     curEvent.exception.code,
-	     (unsigned long long) curEvent.exception.addr);
-      fflush(stdout);
-      fprintf(stderr,
-	      "EXCEPTION %d at %llx\n",
-	      curEvent.exception.code,
-	      (unsigned long long) curEvent.exception.addr);
-    }
-    else if (curEvent.type == INS_EVENT) {
+    if (curEvent.type == INS_EVENT) {
       if (targetTid != -1 && curEvent.ins.tid != targetTid) {
 	continue;
       }
@@ -267,37 +256,35 @@ int main(int argc, char *argv[]) {
       }
       else {
 	int i;
-	if(hasBin) {
-	  if(hasData) {
-	    ReaderOp *curOp = info.readWriteOps;
-	    for(i = 0; i < info.readWriteOpCnt; i++) {
-	      if(curOp->type == MEM_OP) {
-		char *s = printMemOp(readerState, "MW", curOp, curEvent.ins.tid);
-		printf("%s", s);
-		free(s);
-	      }
-	      else if (curOp->type == REG_OP) {
-		char *s = printRegOp(readerState, "W", curOp->reg, curEvent.ins.tid);
-		printf("%s", s);
-		free(s);
-	      }
-	      curOp = curOp->next;
+	if(hasBin && hasData) {
+	  ReaderOp *curOp = info.readWriteOps;
+	  for(i = 0; i < info.readWriteOpCnt; i++) {
+	    if(curOp->type == MEM_OP) {
+	      char *s = printMemOp(readerState, "MW", curOp, curEvent.ins.tid);
+	      printf("%s", s);
+	      free(s);
 	    }
+	    else if (curOp->type == REG_OP) {
+	      char *s = printRegOp(readerState, "W", curOp->reg, curEvent.ins.tid);
+	      printf("%s", s);
+	      free(s);
+	    }
+	    curOp = curOp->next;
+	  }
 
-	    curOp = info.dstOps;
-	    for(i = 0; i < info.dstOpCnt; i++) {
-	      if(curOp->type == MEM_OP) {
-		char *s = printMemOp(readerState, "MW", curOp, curEvent.ins.tid);
-		printf("%s", s);
-		free(s);
-	      }
-	      else if (curOp->type == REG_OP) {
-		char *s = printRegOp(readerState, "W", curOp->reg, curEvent.ins.tid);
-		printf("%s", s);
-		free(s);
-	      }
-	      curOp = curOp->next;
+	  curOp = info.dstOps;
+	  for(i = 0; i < info.dstOpCnt; i++) {
+	    if(curOp->type == MEM_OP) {
+	      char *s = printMemOp(readerState, "MW", curOp, curEvent.ins.tid);
+	      printf("%s", s);
+	      free(s);
 	    }
+	    else if (curOp->type == REG_OP) {
+	      char *s = printRegOp(readerState, "W", curOp->reg, curEvent.ins.tid);
+	      printf("%s", s);
+	      free(s);
+	    }
+	    curOp = curOp->next;
 	  }
 	}
 	printf(";\n");
@@ -370,15 +357,27 @@ int main(int argc, char *argv[]) {
 	      free(s);
 	    }
 	    else if (curOp->type == REG_OP) {
-	    char *s = printRegOp(readerState, "R", curOp->reg, curEvent.ins.tid);
-	    printf("%s", s);
-	    free(s);
+	      char *s = printRegOp(readerState, "R", curOp->reg, curEvent.ins.tid);
+	      printf("%s", s);
+	      free(s);
+	    }
+	    curOp = curOp->next;
 	  }
-	  curOp = curOp->next;
 	}
       }
     }
+    else if (curEvent.type == EXCEPTION_EVENT) {
+      fflush(stdout);
+      printf("EXCEPTION %d at %llx\n",
+	     curEvent.exception.code,
+	     (unsigned long long) curEvent.exception.addr);
+      fflush(stdout);
+      fprintf(stderr,
+	      "EXCEPTION %d at %llx\n",
+	      curEvent.exception.code,
+	      (unsigned long long) curEvent.exception.addr);
     }
+
     else {
       printf("UNKNOWN EVENT TYPE\n");
     }
