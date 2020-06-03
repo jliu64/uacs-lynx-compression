@@ -71,104 +71,50 @@ void parseCommandLine(int argc, char *argv[]) {
   return;
 }
 
-char *printRegOp(ReaderState *readerState, const char *prefix, LynxReg reg, uint32_t tid) {
-  char *outstr;  // the output string
-  int n, strsz, offset;
+void printRegOp(ReaderState *readerState, const char *prefix, LynxReg reg, uint32_t tid) {
+    reg = LynxReg2FullLynxIA32EReg(reg);
+    printf("%s:%s=", prefix, LynxReg2Str(reg));
 
-  reg = LynxReg2FullLynxIA32EReg(reg);
-  n = LynxRegSize(reg);
-  /*
-   * strsz: a generous upper bound on the size of the output string.
-   * We (lazily) assume that the prefix and the register name together
-   * don't take up more than 28 bytes, and count an additional 4 bytes
-   * for the ';', '=', space, and terminating '\0'.
-   */
-  strsz = 28 + 4;    /* prefix, register-name, ':', '=', ' ', '\0' */
-  strsz += 2 * n + 1;    /* 2*n + 1 : length of the value of the string */
-  outstr = malloc(strsz);
+    const uint8_t *val = getRegisterVal(readerState, reg, tid);
 
-  reg = LynxReg2FullLynxIA32EReg(reg);
-  offset = snprintf(outstr, 32, "%s:%s=", prefix, LynxReg2Str(reg));
-
-  const uint8_t *val = getRegisterVal(readerState, reg, tid);
-
-  for (int i = n-1; i >= 0; i--) {
-    offset += snprintf(outstr+offset, 2+1, "%02x", val[i]);  /* +1 for trailing '\0' */
-  }
-
-  snprintf(outstr+offset, 1+1, " ");  /* +1 for trailing '\0' */
-
-  return outstr;
-}
-
-char *printMemOp(ReaderState *readerState, const char *prefix, ReaderOp *op, uint32_t tid) {
-  char *outstr, *s1, *s2, *s3;
-  int n, strsz, offset;
-
-  n = op->mem.size;
-  /*
-   * strsz: an upper bound on the size of the output string.
-   * We assume that the prefix and address together take up at most 40 bytes
-   * (actually, the prefix is at most 4 characters and the address is
-   * at most 16 characters), and count an additional 5 bytes for the
-   * ';', '=', space, and terminating '\0'.
-   */
-  strsz = 40;    /* prefix, address, '[', ']', '=', ' ', '\0' */
-  strsz += 2 * n + 1;    /* 2*n + 1 : length of the value of the string */
-
-  if (op->mem.seg != LYNX_INVALID) {
-    s1 = printRegOp(readerState, "R", op->mem.seg, tid);
-    strsz += strlen(s1);
-  }
-  if (op->mem.base != LYNX_INVALID) {
-    s2 = printRegOp(readerState, "R", op->mem.base, tid);
-    strsz += strlen(s2);
-  }
-  if (op->mem.index != LYNX_INVALID) {
-    s3 = printRegOp(readerState, "R", op->mem.index, tid);
-    strsz += strlen(s3);
-  }
-  
-  outstr = malloc(strsz);
-  offset = 0;
-  
-  if (!op->mem.addrGen) {
-    offset = snprintf(outstr,
-		      40,
-		      "%s[%llx]=",
-		      prefix,
-		      (unsigned long long) op->mem.addr);
-    uint8_t *buf = malloc(sizeof(uint8_t) * op->mem.size);
-
-    getMemoryVal(readerState, op->mem.addr, op->mem.size, buf);
-
-    for(int i = op->mem.size - 1; i >= 0; i--) {
-      offset += snprintf(outstr+offset, 2+1, "%02x", buf[i]);  /* +1 for trailing '\0' */
+    int i;
+    for(i = LynxRegSize(reg) - 1; i >= 0; i--) {
+        printf("%02x", val[i]);
     }
-    
-    offset += snprintf(outstr+offset, 1+1, " ");  /* +1 for trailing '\0' */
 
-    free(buf);
-  }
-
-  if (op->mem.seg != LYNX_INVALID) {
-    offset += snprintf(outstr+offset, strlen(s1)+1, "%s", s1);
-    free(s1);
-  }
-  if (op->mem.base != LYNX_INVALID) {
-    offset += snprintf(outstr+offset, strlen(s2)+1, "%s", s2);
-    free(s2);
-  }
-  if (op->mem.index != LYNX_INVALID) {
-    offset += snprintf(outstr+offset, strlen(s3)+1, "%s", s3);
-    free(s3);
-  }
-
-  return outstr;
+    printf(" ");
 }
 
+void printMemOp(ReaderState *readerState, const char *prefix, ReaderOp *op, uint32_t tid) {
+    if(!op->mem.addrGen) {
+        printf("%s[%llx]=", prefix, (unsigned long long) op->mem.addr);
+        uint8_t *buf = malloc(sizeof(uint8_t) * op->mem.size);
+
+        getMemoryVal(readerState, op->mem.addr, op->mem.size, buf);
+
+        int i;
+        for(i = op->mem.size - 1; i >= 0; i--) {
+            printf("%02x", buf[i]);
+        }
+        printf(" ");
+
+        free(buf);
+    }
+
+    if(op->mem.seg != LYNX_INVALID) {
+        printRegOp(readerState, "R", op->mem.seg, tid);
+    }
+    if(op->mem.base != LYNX_INVALID) {
+        printRegOp(readerState, "R", op->mem.base, tid);
+    }
+    if(op->mem.index != LYNX_INVALID) {
+        printRegOp(readerState, "R", op->mem.index, tid);
+    }
+}
 
 int main(int argc, char *argv[]) {
+  uint64_t prev_addr = 0, curr_addr = 0;
+
   if (argc < 2) {
     printUsage(argv[0]);
     return 1;
@@ -193,7 +139,7 @@ int main(int argc, char *argv[]) {
 
   InsInfo info;
   initInsInfo(&info);
-  char first = 1;
+  char first = 1, ins_printed = 0;
 
   if (beginFn) {
     beginId = findString(readerState, beginFn);
@@ -256,38 +202,54 @@ int main(int argc, char *argv[]) {
       }
       else {
 	int i;
-	if(hasBin && hasData) {
-	  ReaderOp *curOp = info.readWriteOps;
-	  for(i = 0; i < info.readWriteOpCnt; i++) {
-	    if(curOp->type == MEM_OP) {
-	      char *s = printMemOp(readerState, "MW", curOp, curEvent.ins.tid);
-	      printf("%s", s);
-	      free(s);
+	if (target_addr == 0 || target_addr == prev_addr) {
+	  if(hasBin && hasData) {
+	  /*
+	   * For technical reasons, it is convenient to record  src and dest operand
+	   * values for each instruction before that instruction is executed; this is
+	   * what the tracer does.  As a result, when the reader reads an instruction
+	   * in an execution trace, the register and memory values correspond to the
+	   * program state *before* that instruction executes.  But people find it 
+	   * easier to understand a program's behavior by associating each instruction 
+	   * with register and memory values *after* that instruction has executed;
+	   * this is what trace2ascii prints out.  To make this work, trace2ascii
+	   * proceeds as follows: after reading an event (which gives the program
+	   * state before the current instruction, i.e., after the previous instruction)
+	   * it first computes and prints out the operand values for the previous
+	   * instruction (i.e., after the previous instruction executed), then prints
+	   * a newline, then prints out non-operand-value information about the current
+	   * instruction.  The variable info holds information about the operands of 
+	   * an instruction, and this variable is not updated until after the operand
+	   * values for the previous instruction are printed out.
+	   */
+	    ReaderOp *curOp = info.readWriteOps;
+	    for(i = 0; i < info.readWriteOpCnt; i++) {
+	      if(curOp->type == MEM_OP) {
+		printMemOp(readerState, "MW", curOp, curEvent.ins.tid);
+	      }
+	      else if (curOp->type == REG_OP) {
+		printRegOp(readerState, "W", curOp->reg, curEvent.ins.tid);
+	      }
+	      curOp = curOp->next;
 	    }
-	    else if (curOp->type == REG_OP) {
-	      char *s = printRegOp(readerState, "W", curOp->reg, curEvent.ins.tid);
-	      printf("%s", s);
-	      free(s);
-	    }
-	    curOp = curOp->next;
-	  }
 
-	  curOp = info.dstOps;
-	  for(i = 0; i < info.dstOpCnt; i++) {
-	    if(curOp->type == MEM_OP) {
-	      char *s = printMemOp(readerState, "MW", curOp, curEvent.ins.tid);
-	      printf("%s", s);
-	      free(s);
+	    curOp = info.dstOps;
+	    for (i = 0; i < info.dstOpCnt; i++) {
+	      if (curOp->type == MEM_OP) {
+		printMemOp(readerState, "MW", curOp, curEvent.ins.tid);
+	      }
+	      else if (curOp->type == REG_OP) {
+		printRegOp(readerState, "W", curOp->reg, curEvent.ins.tid);
+	      }
+	      curOp = curOp->next;
 	    }
-	    else if (curOp->type == REG_OP) {
-	      char *s = printRegOp(readerState, "W", curOp->reg, curEvent.ins.tid);
-	      printf("%s", s);
-	      free(s);
-	    }
-	    curOp = curOp->next;
 	  }
 	}
+      }
+
+      if (ins_printed) {
 	printf(";\n");
+	ins_printed = 0;
       }
 
       if (endStackTid == curEvent.ins.tid) {
@@ -327,24 +289,30 @@ int main(int argc, char *argv[]) {
       }
 
       if (hasBin) {
+	/*
+	 * Update information about the source and destination operands of
+	 * the instruction.
+	 */
 	fetchInsInfo(readerState, &curEvent.ins, &info);
+	
 	int i;
 	for (i = 0; i < curEvent.ins.binSize; i++) {
 	  printf(" %02x", curEvent.ins.binary[i]);
 	}
+	
 	printf("; %s; ", info.mnemonic);
+	prev_addr = curr_addr;
+	curr_addr = curEvent.ins.addr;
+	ins_printed = 1;
+
 	if (hasData) {
 	  ReaderOp *curOp = info.srcOps;
 	  for (i = 0; i < info.srcOpCnt; i++) {
 	    if (curOp->type == MEM_OP) {
-	      char *s = printMemOp(readerState, "MR", curOp, curEvent.ins.tid);
-	      printf("%s", s);
-	      free(s);
+	      printMemOp(readerState, "MR", curOp, curEvent.ins.tid);
 	    }
 	    else if (curOp->type == REG_OP) {
-	      char *s = printRegOp(readerState, "R", curOp->reg, curEvent.ins.tid);
-	      printf("%s", s);
-	      free(s);
+	      printRegOp(readerState, "R", curOp->reg, curEvent.ins.tid);
 	    }
 	    curOp = curOp->next;
 	  }
@@ -352,14 +320,10 @@ int main(int argc, char *argv[]) {
 	  curOp = info.readWriteOps;
 	  for (i = 0; i < info.readWriteOpCnt; i++) {
 	    if (curOp->type == MEM_OP) {
-	      char *s = printMemOp(readerState, "MR", curOp, curEvent.ins.tid);
-	      printf("%s", s);
-	      free(s);
+	      printMemOp(readerState, "MR", curOp, curEvent.ins.tid);
 	    }
 	    else if (curOp->type == REG_OP) {
-	      char *s = printRegOp(readerState, "R", curOp->reg, curEvent.ins.tid);
-	      printf("%s", s);
-	      free(s);
+	      printRegOp(readerState, "R", curOp->reg, curEvent.ins.tid);
 	    }
 	    curOp = curOp->next;
 	  }
