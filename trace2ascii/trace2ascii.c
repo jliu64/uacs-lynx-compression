@@ -159,13 +159,18 @@ int main(int argc, char *argv[]) {
     uint64_t endStackPtr = 0;
     uint32_t endStackTid = -1;
 
+    uint64_t n = 0;
     while(nextEvent(readerState, &curEvent)) {
-    //while(nextEvent(readerState, &curEvent)) {
         if(curEvent.type == EXCEPTION_EVENT) {
             fflush(stdout);
-            printf("EXCEPTION %d at %llx\n", curEvent.exception.code, (unsigned long long) curEvent.exception.addr);
+            printf("EXCEPTION %d at %llx\n",
+		   curEvent.exception.code,
+		   (unsigned long long) curEvent.exception.addr);
             fflush(stdout);
-            fprintf(stderr, "EXCEPTION %d at %llx\n", curEvent.exception.code, (unsigned long long) curEvent.exception.addr);
+            fprintf(stderr,
+		    "EXCEPTION %d at %llx\n",
+		    curEvent.exception.code,
+		    (unsigned long long) curEvent.exception.addr);
         }
         else if(curEvent.type == INS_EVENT) {
             if(targetTid != -1 && curEvent.ins.tid != targetTid) {
@@ -236,29 +241,31 @@ int main(int argc, char *argv[]) {
                 break;
             }
 
+            printf("%ld:", n++);      
+
             if(hasTid) {
-                printf("%d ", curEvent.ins.tid);
+                printf(" tid=%d;", curEvent.ins.tid);
             }
 
             if(hasAddr) {
-                printf("%llx ", (unsigned long long) curEvent.ins.addr);
+                printf(" 0x%llx;", (unsigned long long) curEvent.ins.addr);
             }
 
             if(hasSrcId) {
-                printf("%s ", fetchStrFromId(readerState, curEvent.ins.srcId));
+                printf(" %s;", fetchStrFromId(readerState, curEvent.ins.srcId));
             }
 
             if(hasFnId) {
-                printf("%s ", fetchStrFromId(readerState, curEvent.ins.fnId));
+                printf(" %s;", fetchStrFromId(readerState, curEvent.ins.fnId));
             }
 
             if(hasBin) {
                 fetchInsInfo(readerState, &curEvent.ins, &info);
                 int i;
                 for(i = 0; i < curEvent.ins.binSize; i++) {
-                    printf("%02x ", curEvent.ins.binary[i]);
+                    printf(" %02x", curEvent.ins.binary[i]);
                 }
-                printf("%s ", info.mnemonic);
+                printf("; %s; ", info.mnemonic);
                 if(hasData) {
                     ReaderOp *curOp = info.srcOps;
                     for(i = 0; i < info.srcOpCnt; i++) {
