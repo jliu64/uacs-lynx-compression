@@ -107,7 +107,6 @@ blockSlice *getBlockSlice(SliceState *slice, Action *action){
 *  Purpose: Make a new Korel-block for a given set of indicies
 */
 blockSlice *createNewBlock(SliceState *slice, uint64_t startPos, uint64_t endPos, uint64_t id){
-  //blockSlice *bbl = (blockSlice *)malloc(sizeof(blockSlice));
   blockSlice *bbl = new blockSlice();
   bbl->start = startPos;
   bbl->end = endPos;
@@ -305,8 +304,17 @@ void taintRegMemOps(TaintState *backTaint,
 }
 
 uint8_t canSkipTaintBecauseInsType(xed_iclass_enum_t inst){
-  uint8_t isRet = (inst == XED_ICLASS_RET_FAR || inst == XED_ICLASS_RET_NEAR || inst == XED_ICLASS_IRET || inst == XED_ICLASS_IRETD || inst == XED_ICLASS_IRETQ || inst == XED_ICLASS_SYSRET || inst == XED_ICLASS_SYSRET_AMD);
-  uint8_t isCall = (inst == XED_ICLASS_CALL_FAR || inst == XED_ICLASS_CALL_NEAR || inst == XED_ICLASS_SYSCALL || inst == XED_ICLASS_SYSCALL_AMD);
+  uint8_t isRet = (inst == XED_ICLASS_RET_FAR
+		   || inst == XED_ICLASS_RET_NEAR
+		   || inst == XED_ICLASS_IRET
+		   || inst == XED_ICLASS_IRETD
+		   || inst == XED_ICLASS_IRETQ
+		   || inst == XED_ICLASS_SYSRET
+		   || inst == XED_ICLASS_SYSRET_AMD);
+  uint8_t isCall = (inst == XED_ICLASS_CALL_FAR
+		    || inst == XED_ICLASS_CALL_NEAR
+		    || inst == XED_ICLASS_SYSCALL
+		    || inst == XED_ICLASS_SYSCALL_AMD);
   uint8_t isLeave = (inst == XED_ICLASS_LEAVE);
   uint8_t isEnter = (inst == XED_ICLASS_ENTER);
   uint8_t isRIPUser = (isConditionalJump(inst) || isUnconditionalJump(inst));
@@ -599,6 +607,11 @@ void printLastDefs(SliceState *slice, uint64_t numActions){
 
 void build_action_list(SlicedriverState *driver_state) {
   Action **listOfActions = (Action **) malloc(driver_state->numIns * sizeof(Action *));
+  if (listOfActions == NULL) {
+    fprintf(stderr, "[%s] Not enough memory\n", __func__);
+    exit(1);
+  }
+
   uint64_t position = 0;
 
   driver_state->slice_start_action = NULL;
