@@ -42,41 +42,41 @@ extern "C" {
  *******************************************************************************/
 
 void init_slice_driver(char **argv, SlicedriverState *driver_state) {
-    driver_state->rState = initReader(driver_state->trace, 0);
-    driver_state->backTaint = initTaint(driver_state->rState);
+  driver_state->rState = initReader(driver_state->trace, 0);
+  driver_state->backTaint = initTaint(driver_state->rState);
 
-    vector<uint32_t>::iterator it = driver_state->includeSrcs.begin();
-    while(it != driver_state->includeSrcs.end()) {
-        *it = findString(driver_state->rState, argv[*it]);
+  vector<uint32_t>::iterator it = driver_state->includeSrcs.begin();
+  while (it != driver_state->includeSrcs.end()) {
+    *it = findString(driver_state->rState, argv[*it]);
     
-        if((int) *it == -1) {
-            it = driver_state->includeSrcs.erase(it);
-        }
-        else {
-            it++;
-        }
-    }
-
-    if(driver_state->beginFn) {
-        driver_state->beginId = findString(driver_state->rState, driver_state->beginFn);
+    if ((int) *it == -1) {
+      it = driver_state->includeSrcs.erase(it);
     }
     else {
-        driver_state->beginId = findString(driver_state->rState, "main");
+      it++;
     }
+  }
 
-    if(driver_state->endFn) {
-        driver_state->endId = findString(driver_state->rState, driver_state->endFn);
-    }
-    else if((int)driver_state->beginId == -1) {
-        driver_state->endId = findString(driver_state->rState, "_exit");
-    }
-    else {
-        driver_state->endId = findString(driver_state->rState, "__libc_start_main");
-    }
+  if (driver_state->beginFn) {
+    driver_state->beginId = findString(driver_state->rState, driver_state->beginFn);
+  }
+  else {
+    driver_state->beginId = findString(driver_state->rState, "main");
+  }
 
-    if(driver_state->traceFn) {
-        driver_state->traceId = findString(driver_state->rState, driver_state->traceFn);
-    }
+  if(driver_state->endFn) {
+    driver_state->endId = findString(driver_state->rState, driver_state->endFn);
+  }
+  else if((int)driver_state->beginId == -1) {
+    driver_state->endId = findString(driver_state->rState, "_exit");
+  }
+  else {
+    driver_state->endId = findString(driver_state->rState, "__libc_start_main");
+  }
+
+  if(driver_state->traceFn) {
+    driver_state->traceId = findString(driver_state->rState, driver_state->traceFn);
+  }
 }
 
 
@@ -88,130 +88,137 @@ void init_slice_driver(char **argv, SlicedriverState *driver_state) {
  *******************************************************************************/
 
 void build_cfg(SlicedriverState *driver_state) {
-    ReaderEvent curEvent;
-    cfgState *cfgs = initCFG(driver_state->rState,
-			     (int)getNumThreads(driver_state->rState));
+  ReaderEvent curEvent;
+  cfgState *cfgs = initCFG(driver_state->rState,
+			   (int)getNumThreads(driver_state->rState));
 
-    uint8_t foundBeginFn = ((int)driver_state->beginId == -1);
-    uint8_t foundTraceFn = ((int)driver_state->traceId == -1);
-    uint8_t run = foundBeginFn && foundTraceFn;
-    uint64_t endStackPtr = 0;
-    uint32_t endStackTid = -1;
-    uint64_t numIns = 0;
+  uint8_t foundBeginFn = ((int)driver_state->beginId == -1);
+  uint8_t foundTraceFn = ((int)driver_state->traceId == -1);
+  uint8_t run = foundBeginFn && foundTraceFn;
+  uint64_t endStackPtr = 0;
+  uint32_t endStackTid = -1;
+  uint64_t numIns = 0;
 
-    while(nextEvent(driver_state->rState, &curEvent)) {
-        if (curEvent.type == INS_EVENT) {
-            if(driver_state->targetTid != -1 && curEvent.ins.tid != driver_state->targetTid) {
-                continue;
-            }
+  while (nextEvent(driver_state->rState, &curEvent)) {
+    if (curEvent.type == INS_EVENT) {
+      if(driver_state->targetTid != -1 && curEvent.ins.tid != driver_state->targetTid) {
+	continue;
+      }
 
-            if(!run) {
-                if(!foundBeginFn && curEvent.ins.fnId == driver_state->beginId) {
-		    foundBeginFn = 1;
-                }
-                if(!foundTraceFn && curEvent.ins.fnId == driver_state->traceId) { 
-		    foundTraceFn = 1;
-		    endStackTid = curEvent.ins.tid;
-	  	    endStackPtr = *((uint64_t *) getRegisterVal(driver_state->rState, LYNX_RSP, endStackTid));
-                }
+      if (!run) {
+	if (!foundBeginFn && curEvent.ins.fnId == driver_state->beginId) {
+	  foundBeginFn = 1;
+	}
+	if (!foundTraceFn && curEvent.ins.fnId == driver_state->traceId) {
+	  foundTraceFn = 1;
+	  endStackTid = curEvent.ins.tid;
+	  endStackPtr = *((uint64_t *) getRegisterVal(driver_state->rState,
+						      LYNX_RSP,
+						      endStackTid));
+	}
 
-		run = foundBeginFn && foundTraceFn;
-                if(!run) {
-                    continue;
-                }
-            }
+	run = foundBeginFn && foundTraceFn;
+	if(!run) {
+	  continue;
+	}
+      }
 
-            if(endStackTid == curEvent.ins.tid) {
-                uint64_t stackPtr = *((uint64_t *) getRegisterVal(driver_state->rState, LYNX_RSP, endStackTid));
-                if(stackPtr > endStackPtr) {
-                    break;
-                }
-            }
-            if(curEvent.ins.fnId == driver_state->endId) {
-                break;
-            }
-        }
-	if (curEvent.type == EXCEPTION_EVENT) {
-            if(!run || (driver_state->targetTid != -1 && curEvent.exception.tid != driver_state->targetTid)) {
-                continue;
-            }
-            printf("EXCEPTION %d\n", curEvent.exception.code);
-        }
-
-        cfgInstruction *cfgVal = addInstructionToCFG(&curEvent, cfgs);
-        if(cfgVal->event.type != EXCEPTION_EVENT){
-        }
-        numIns++;
-    	InsInfo *curInfo = new InsInfo();
-	initInsInfo(curInfo);
-	fetchInsInfo(driver_state->rState, &(cfgVal->event.ins), curInfo);
-        // Save reg values
-        infoTuple *saved = new infoTuple();
-        saved->storedInfo = curInfo;
-        if(curEvent.type == EXCEPTION_EVENT){
-          saved->tid = curEvent.exception.tid;
-        } else {
-          saved->tid = curEvent.ins.tid;
-        }
-
-        // If we have a PUSH, save the rsp/reg value
-        xed_iclass_enum_t inst = curInfo->insClass;
-        if(!driver_state->keepReg && curEvent.type != EXCEPTION_EVENT && isPushIns(inst)){
-          ReaderOp *op = curInfo->srcOps;
-          for(int i = 0; i < curInfo->srcOpCnt; i++){
-            if(op->type == REG_OP){    // Handle Push (save REG pushed on stack)
-              LynxReg parent = LynxReg2FullLynxReg(op->reg);
-              if(parent != LYNX_RSP){
-                saved->regVal = getRegisterVal(driver_state->rState, parent, curEvent.ins.tid);
-                saved->reg = parent;
-              }
-            }
-            op = op->next;
-          }
-          op = curInfo->dstOps;
-          for(int i = 0; i < curInfo->dstOpCnt; i++){
-            if(op->type == MEM_OP){    // Handle Push (save REG pushed on stack)
-              saved->rspVal = op->mem.addr;
-              break;
-            }
-            op = op->next;
-          }
-        }
-
-        // Otherwise handle save reg values for POP
-        else if(!driver_state->keepReg && curEvent.type != EXCEPTION_EVENT && isPopIns(inst)){
-          ReaderOp *op = curInfo->srcOps;    // Get RSP
-          for(int i = 0; i < curInfo->srcOpCnt; i++){
-            if(op->type == MEM_OP){    // Handle Pop's RSP
-                saved->rspVal = op->mem.addr;
-                break;
-            }
-            op = op->next;
-          }
-          // Get the register/reg value
-          op = curInfo->dstOps;
-          for(int i = 0; i < curInfo->dstOpCnt; i++){
-            if(op->type == REG_OP){    // Handle Pop (save REG pushed on stack)
-              LynxReg parent = LynxReg2FullLynxReg(op->reg);
-              if(parent != LYNX_RSP){
-                saved->regVal = getRegisterVal(driver_state->rState, parent, curEvent.ins.tid);
-                saved->reg = parent;
-              }
-            }
-            op = op->next;
-          }
-        }
- 
-	driver_state->insCollection->push_back(std::make_pair(cfgVal, saved));
+      if (endStackTid == curEvent.ins.tid) {
+	uint64_t stackPtr = *((uint64_t *) getRegisterVal(driver_state->rState,
+							  LYNX_RSP,
+							  endStackTid));
+	if (stackPtr > endStackPtr) {
+	  break;
+	}
+      }
+      if(curEvent.ins.fnId == driver_state->endId) {
+	break;
+      }
     }
+    if (curEvent.type == EXCEPTION_EVENT) {
+      if (!run ||
+	  (driver_state->targetTid != -1
+	   && curEvent.exception.tid != driver_state->targetTid)) {
+	continue;
+      }
+      printf("EXCEPTION %d\n", curEvent.exception.code);
+    }
+
+    cfgInstruction *cfgVal = addInstructionToCFG(&curEvent, cfgs);
+    if (cfgVal->event.type != EXCEPTION_EVENT) {
+      /* not sure of the purpose of this empty IF-stmt: bug???  --SKD 6/2020 */
+    }
+    numIns++;
+    InsInfo *curInfo = new InsInfo();
+    initInsInfo(curInfo);
+    fetchInsInfo(driver_state->rState, &(cfgVal->event.ins), curInfo);
+        // Save reg values
+    infoTuple *saved = new infoTuple();
+    saved->storedInfo = curInfo;
+    if (curEvent.type == EXCEPTION_EVENT) {
+      saved->tid = curEvent.exception.tid;
+    }
+    else {
+      saved->tid = curEvent.ins.tid;
+    }
+
+    // If we have a PUSH, save the rsp/reg value
+    xed_iclass_enum_t inst = curInfo->insClass;
+    if (!driver_state->keepReg && curEvent.type != EXCEPTION_EVENT && isPushIns(inst)) {
+      ReaderOp *op = curInfo->srcOps;
+      for (int i = 0; i < curInfo->srcOpCnt; i++) {
+	if (op->type == REG_OP) {    // Handle Push (save REG pushed on stack)
+	  LynxReg parent = LynxReg2FullLynxReg(op->reg);
+	  if (parent != LYNX_RSP) {
+	    saved->regVal = getRegisterVal(driver_state->rState, parent, curEvent.ins.tid);
+	    saved->reg = parent;
+	  }
+	}
+	op = op->next;
+      }
+      op = curInfo->dstOps;
+      for (int i = 0; i < curInfo->dstOpCnt; i++) {
+	if (op->type == MEM_OP) {    // Handle Push (save REG pushed on stack) 
+	  saved->rspVal = op->mem.addr;
+	  break;
+	}
+	op = op->next;
+      }
+    }
+    else if (!driver_state->keepReg && curEvent.type != EXCEPTION_EVENT && isPopIns(inst)) {
+      // handle save reg values for POP
+      ReaderOp *op = curInfo->srcOps;    // Get RSP
+      for (int i = 0; i < curInfo->srcOpCnt; i++) {
+	if (op->type == MEM_OP) {    // Handle Pop's RSP
+	  saved->rspVal = op->mem.addr;
+	  break;
+	}
+	op = op->next;
+      }
+      // Get the register/reg value
+      op = curInfo->dstOps;
+      for (int i = 0; i < curInfo->dstOpCnt; i++) {
+	if (op->type == REG_OP) {    // Handle Pop (save REG pushed on stack)
+	  LynxReg parent = LynxReg2FullLynxReg(op->reg);
+	  if (parent != LYNX_RSP) {
+	    saved->regVal = getRegisterVal(driver_state->rState, parent, curEvent.ins.tid);
+	    saved->reg = parent;
+	  }
+	}
+	op = op->next;
+      }
+    }
+ 
+    driver_state->insCollection->push_back(std::make_pair(cfgVal, saved));
+  }
     
-    driver_state->numIns = numIns;
+  driver_state->numIns = numIns;
 
-    finalizeCFG(cfgs);
+  finalizeCFG(cfgs);
 
-    printNumIns(cfgs);
-    printNumBlocks(cfgs);
-    printNumEdges(cfgs);
+  printNumIns(cfgs);
+  printNumBlocks(cfgs);
+  printNumEdges(cfgs);
 }
 
 
@@ -240,21 +247,21 @@ void init_driver_state(SlicedriverState *driver_state,
  *******************************************************************************/
 
 int main(int argc, char **argv){
-    SlicedriverState driver_state;
-    std::pair<Action *, uint64_t> action_info;
-    vector<std::pair<cfgInstruction *, infoTuple *>> insCollection;
+  SlicedriverState driver_state;
+  std::pair<Action *, uint64_t> action_info;
+  vector<std::pair<cfgInstruction *, infoTuple *>> insCollection;
 
-    init_driver_state(&driver_state, &insCollection);
+  init_driver_state(&driver_state, &insCollection);
     
-    parseCommandLine(argc, argv, &driver_state);
+  parseCommandLine(argc, argv, &driver_state);
     
-    init_slice_driver(argv, &driver_state);
+  init_slice_driver(argv, &driver_state);
 
-    build_cfg(&driver_state);
+  build_cfg(&driver_state);
     
-    SliceState *sliceState = compute_slice(&driver_state);
+  SliceState *sliceState = compute_slice(&driver_state);
 
-    closeReader(driver_state.rState);
+  closeReader(driver_state.rState);
     
-    return 0;
+  return 0;
 }
