@@ -4,7 +4,7 @@ This program prints out a textual representation of a trace.
 
 ## Usage
 
-    `text2ascii [OPTIONS] trace_file`
+    text2ascii [OPTIONS] trace_file
 
 ## Output
 The output produced by `trace2ascii` lists the instructions (and any exception events) in the input trace file, in their occurrence order in the trace, one instruction per line.  Each line consists of a sequence of `;`-delimited fields in the following order:

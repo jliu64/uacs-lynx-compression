@@ -7,15 +7,31 @@
 #include <Reader.h>
 #include "stdio.h"
 
-char *trace = NULL;
-char *beginFn  = NULL;
-uint32_t beginId = -1;
-char *endFn = NULL;
-uint32_t endId = -1;
-char *traceFn = NULL;
-uint32_t traceId = -1;
-int64_t targetTid = -1;
-uint64_t target_addr = 0;
+typedef struct {
+  char *trace;
+  char *beginFn;
+  uint32_t beginId;
+  char *endFn;
+  uint32_t endId;
+  char *traceFn;
+  uint32_t traceId;
+  int64_t targetTid;
+  uint64_t target_addr;
+  uint8_t hasSrcReg;
+  uint8_t hasMemRead;
+  uint8_t hasData;
+  uint8_t hasSrcId;
+  uint8_t hasFnId;
+  uint8_t hasAddr;
+  uint8_t hasBin;
+  uint8_t hasTid;
+  uint8_t foundBeginFn;
+  uint8_t foundTraceFn;
+  uint8_t run;
+  uint8_t addrSize;
+  uint64_t endStackPtr;
+  uint32_t endStackTid;
+} Trace2Ascii_state;  
 
 void printUsage(char *program) {
     printf("Usage: %s [OPTIONS] <trace>\n", program);
@@ -28,14 +44,28 @@ void printUsage(char *program) {
     printf("  -h : print usage\n");
 }
 
-void parseCommandLine(int argc, char *argv[]) {
+void parseCommandLine(int argc, char *argv[], Trace2Ascii_state *tstate) {
   int i;
   char *endptr;
-  
+  /*
+   * initialize state
+   */
+  tstate->trace = NULL;
+  tstate->beginFn  = NULL;
+  tstate->beginId = -1;
+  tstate->endFn = NULL;
+  tstate->endId = -1;
+  tstate->traceFn = NULL;
+  tstate->traceId = -1;
+  tstate->targetTid = -1;
+  tstate->target_addr = 0;
+  /*
+   * process command line
+   */
   for (i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-a") == 0) {
       i++;
-      target_addr = strtoull(argv[i], &endptr, 16);
+      tstate->target_addr = strtoull(argv[i], &endptr, 16);
       if (*endptr != '\0') {
 	fprintf(stderr,
 		"WARNING: target address %s contains unexpected characters: %s\n",
@@ -44,16 +74,16 @@ void parseCommandLine(int argc, char *argv[]) {
       }
     }
     else if (strcmp(argv[i], "-b") == 0) {
-      beginFn = argv[++i];
+      tstate->beginFn = argv[++i];
     }
     else if (strcmp(argv[i], "-e") == 0) {
-      endFn = argv[++i];
+      tstate->endFn = argv[++i];
     }
     else if (strcmp(argv[i], "-f") == 0) {
-      traceFn = argv[++i];
+      tstate->traceFn = argv[++i];
     }
     else if (strcmp(argv[i], "-t") == 0) {
-      targetTid = strtoul(argv[++i], NULL, 10);
+      tstate->targetTid = strtoul(argv[++i], NULL, 10);
     }
     else if (strcmp(argv[i], "-h") == 0) {
       printUsage(argv[0]);
@@ -63,7 +93,7 @@ void parseCommandLine(int argc, char *argv[]) {
       fprintf(stderr, "Unknown option [ignoring]: %s\n", argv[i]);
     }
     else {
-      trace = argv[i];
+      tstate->trace = argv[i];
       break;
     }
   }
@@ -112,137 +142,205 @@ void printMemOp(ReaderState *readerState, const char *prefix, ReaderOp *op, uint
     }
 }
 
-int main(int argc, char *argv[]) {
-  uint64_t prev_addr = 0, curr_addr = 0;
 
+/*******************************************************************************
+ *                                                                             *
+ * chk_trace_state() -- returns 1 if printing of the trace should begin,       *
+ * 0 otherwise.                                                                *
+ *                                                                             *
+ *******************************************************************************/
+
+int chk_trace_state(ReaderEvent *curEvent,
+		    ReaderState *readerState,
+		    Trace2Ascii_state *tstate) {
+  if (tstate->targetTid != -1 && curEvent->ins.tid != tstate->targetTid) {
+    return 0;
+  }
+
+  if (!tstate->run) {
+    if (!tstate->foundBeginFn) {
+      if (curEvent->ins.fnId == tstate->beginId) {
+	tstate->foundBeginFn = 1;
+	tstate->run = (tstate->foundBeginFn && tstate->foundTraceFn);
+      }
+    }
+    if (!tstate->foundTraceFn) {
+      if (curEvent->ins.fnId == tstate->traceId) {
+	tstate->foundTraceFn = 1;
+	tstate->endStackTid = curEvent->ins.tid;
+	tstate->endStackPtr = *((uint64_t *) getRegisterVal(readerState,
+							    LYNX_RSP,
+							    tstate->endStackTid));
+	tstate->run = (tstate->foundBeginFn && tstate->foundTraceFn);
+      }
+    }
+
+    if (!tstate->run) {
+      return 0;
+    }
+  }
+
+  return 1;
+}
+
+/********************************************************************************
+ *                                                                              *
+ * print_operands_after() -- prints the values of an instruction's operands     *
+ * after that instruction's execution.                                          *
+ *                                                                              *
+ ********************************************************************************/
+
+/*
+ * For technical reasons, it is convenient to record  src and dest operand values
+ * for each instruction before that instruction is executed; this is what the
+ * tracer does.  As a result, when the reader reads an instruction in an execution
+ * trace, the register and memory values correspond to the program state *before* 
+ * that instruction executes.  But people find it easier to understand a program's
+ * behavior by associating each instruction with register and memory values *after*
+ * that instruction has executed; this is what trace2ascii prints out.  To make 
+ * this work, trace2ascii proceeds as follows: after reading an event (which gives
+ * the program state before the current instruction, i.e., after the previous 
+ * instruction) it first computes and prints out the operand values for the previous
+ * instruction (i.e., after the previous instruction executed), then prints a 
+ * newline, then prints out non-operand-value information about the current 
+ * instruction.  The variable info holds information about the operands of an 
+ * instruction, and this variable is not updated until after the operand values for
+ * the previous instruction are printed out.
+ */
+void print_operand_info_after(ReaderState *readerState,
+			      InsInfo *info,
+			      ReaderEvent *curEvent) {
+  ReaderOp *curOp = info->readWriteOps;
+  int i;
+
+  for(i = 0; i < info->readWriteOpCnt; i++) {
+    if(curOp->type == MEM_OP) {
+      printMemOp(readerState, "MW", curOp, curEvent->ins.tid);
+    }
+    else if (curOp->type == REG_OP) {
+      printRegOp(readerState, "W", curOp->reg, curEvent->ins.tid);
+    }
+    curOp = curOp->next;
+  }
+
+  curOp = info->dstOps;
+  for (i = 0; i < info->dstOpCnt; i++) {
+    if (curOp->type == MEM_OP) {
+      printMemOp(readerState, "MW", curOp, curEvent->ins.tid);
+    }
+    else if (curOp->type == REG_OP) {
+      printRegOp(readerState, "W", curOp->reg, curEvent->ins.tid);
+    }
+    curOp = curOp->next;
+  }
+}
+
+/*******************************************************************************
+ *                                                                             *
+ * init_trace2ascii_state() -- initialize program state.                       *
+ *                                                                             *
+ *******************************************************************************/
+
+ReaderState *init_trace2ascii_state(int argc, char *argv[], Trace2Ascii_state *tstate) {
   if (argc < 2) {
     printUsage(argv[0]);
-    return 1;
+    exit(1);
   }
 
-  parseCommandLine(argc, argv);
+  parseCommandLine(argc, argv, tstate);
+  ReaderState *readerState = initReader(tstate->trace, 0);
 
-  ReaderState *readerState = initReader(trace, 0);
-
-  ReaderEvent curEvent;
-
-  uint8_t hasSrcReg = hasFields(readerState, getSelMask(SEL_SRCREG));
-  uint8_t hasMemRead = hasFields(readerState, getSelMask(SEL_MEMREAD));
-  uint8_t hasData = (hasFields(readerState, getSelMask(SEL_DESTREG))
+  tstate->hasSrcReg = hasFields(readerState, getSelMask(SEL_SRCREG));
+  tstate->hasMemRead = hasFields(readerState, getSelMask(SEL_MEMREAD));
+  tstate->hasData = (hasFields(readerState, getSelMask(SEL_DESTREG))
 		     || hasFields(readerState, getSelMask(SEL_MEMWRITE))
-		     || hasSrcReg || hasMemRead);
-  uint8_t hasSrcId = hasFields(readerState, getSelMask(SEL_SRCID));
-  uint8_t hasFnId = hasFields(readerState, getSelMask(SEL_FNID));
-  uint8_t hasAddr = hasFields(readerState, getSelMask(SEL_ADDR));
-  uint8_t hasBin = hasFields(readerState, getSelMask(SEL_BIN));
-  uint8_t hasTid = hasFields(readerState, getSelMask(SEL_TID));
+		     || tstate->hasSrcReg
+	 	     || tstate->hasMemRead);
+  tstate->hasSrcId = hasFields(readerState, getSelMask(SEL_SRCID));
+  tstate->hasFnId = hasFields(readerState, getSelMask(SEL_FNID));
+  tstate->hasAddr = hasFields(readerState, getSelMask(SEL_ADDR));
+  tstate->hasBin = hasFields(readerState, getSelMask(SEL_BIN));
+  tstate->hasTid = hasFields(readerState, getSelMask(SEL_TID));
 
+  if (tstate->beginFn) {
+    tstate->beginId = findString(readerState, tstate->beginFn);
+    if (tstate->beginId == -1) {
+      tstate->beginFn = NULL;
+    }
+  }
+
+  if (tstate->endFn) {
+    tstate->endId = findString(readerState, tstate->endFn);
+    if(tstate->endId == -1) {
+      tstate->endFn = NULL;
+    }
+  }
+
+  if (tstate->traceFn) {
+    tstate->traceId = findString(readerState, tstate->traceFn);
+    if (tstate->traceId == -1) {
+      tstate->traceFn = NULL;
+    }
+  }
+
+  tstate->foundBeginFn = (tstate->beginFn == NULL);
+  tstate->foundTraceFn = (tstate->traceFn == NULL);
+  tstate->run = tstate->foundBeginFn && tstate->foundTraceFn;
+  tstate->addrSize = getAddrSize(readerState);
+  tstate->endStackPtr = 0;
+  tstate->endStackTid = -1;
+
+  return readerState;
+}
+
+/*******************************************************************************
+ *                                                                             *
+ * get_next_event() -- get the next event, update prev_addr                    *
+ *                                                                             *
+ *******************************************************************************/
+
+uint32_t get_next_event(ReaderState *readerState,
+			ReaderEvent *curEvent,
+			uint64_t *prev_addr) {
+  if (curEvent != NULL && curEvent->type == INS_EVENT) {
+    *prev_addr = curEvent->ins.addr;
+  }
+
+  return nextEvent(readerState, curEvent);
+}
+
+/*******************************************************************************
+ *                                                                             *
+ * main()                                                                      *
+ *                                                                             *
+ *******************************************************************************/
+
+int main(int argc, char *argv[]) {
+  Trace2Ascii_state tstate;
+  uint64_t prev_addr = 0, curr_addr = 0;
+  char first = 1, print_instr = 1, ins_printed = 0;
+  ReaderEvent curEvent;
   InsInfo info;
+
+  ReaderState *readerState = init_trace2ascii_state(argc, argv, &tstate);
+
   initInsInfo(&info);
-  char first = 1, ins_printed = 0;
-
-  if (beginFn) {
-    beginId = findString(readerState, beginFn);
-    if (beginId == -1) {
-      beginFn = NULL;
-    }
-  }
-
-  if (endFn) {
-    endId = findString(readerState, endFn);
-    if(endId == -1) {
-      endFn = NULL;
-    }
-  }
-
-  if (traceFn) {
-    traceId = findString(readerState, traceFn);
-    if (traceId == -1) {
-      traceFn = NULL;
-    }
-  }
-
-  uint8_t foundBeginFn = (beginFn == NULL);
-  uint8_t foundTraceFn = (traceFn == NULL);
-  uint8_t run = foundBeginFn && foundTraceFn;
-  uint8_t addrSize = getAddrSize(readerState);
-  uint64_t endStackPtr = 0;
-  uint32_t endStackTid = -1;
 
   uint64_t n = 0;
-  while (nextEvent(readerState, &curEvent)) {
+  while (get_next_event(readerState, &curEvent, &prev_addr)) {
     if (curEvent.type == INS_EVENT) {
-      if (targetTid != -1 && curEvent.ins.tid != targetTid) {
+      int do_trace = chk_trace_state(&curEvent, readerState, &tstate);
+      if (do_trace == 0) {
 	continue;
       }
-
-      if (!run) {
-	if (!foundBeginFn) {
-	  if (curEvent.ins.fnId == beginId) {
-	    foundBeginFn = 1;
-	    run = foundBeginFn && foundTraceFn;
-	  }
-	}
-	if (!foundTraceFn) {
-	  if (curEvent.ins.fnId == traceId) {
-	    foundTraceFn = 1;
-	    endStackTid = curEvent.ins.tid;
-	    endStackPtr = *((uint64_t *) getRegisterVal(readerState, LYNX_RSP, endStackTid));
-	    run = foundBeginFn && foundTraceFn;
-	  }
-	}
-
-	if (!run) {
-	  continue;
-	}
-      }
-
+    
       if (first) {
 	first = 0;
       }
       else {
-	int i;
-	if (target_addr == 0 || target_addr == prev_addr) {
-	  if(hasBin && hasData) {
-	  /*
-	   * For technical reasons, it is convenient to record  src and dest operand
-	   * values for each instruction before that instruction is executed; this is
-	   * what the tracer does.  As a result, when the reader reads an instruction
-	   * in an execution trace, the register and memory values correspond to the
-	   * program state *before* that instruction executes.  But people find it 
-	   * easier to understand a program's behavior by associating each instruction 
-	   * with register and memory values *after* that instruction has executed;
-	   * this is what trace2ascii prints out.  To make this work, trace2ascii
-	   * proceeds as follows: after reading an event (which gives the program
-	   * state before the current instruction, i.e., after the previous instruction)
-	   * it first computes and prints out the operand values for the previous
-	   * instruction (i.e., after the previous instruction executed), then prints
-	   * a newline, then prints out non-operand-value information about the current
-	   * instruction.  The variable info holds information about the operands of 
-	   * an instruction, and this variable is not updated until after the operand
-	   * values for the previous instruction are printed out.
-	   */
-	    ReaderOp *curOp = info.readWriteOps;
-	    for(i = 0; i < info.readWriteOpCnt; i++) {
-	      if(curOp->type == MEM_OP) {
-		printMemOp(readerState, "MW", curOp, curEvent.ins.tid);
-	      }
-	      else if (curOp->type == REG_OP) {
-		printRegOp(readerState, "W", curOp->reg, curEvent.ins.tid);
-	      }
-	      curOp = curOp->next;
-	    }
-
-	    curOp = info.dstOps;
-	    for (i = 0; i < info.dstOpCnt; i++) {
-	      if (curOp->type == MEM_OP) {
-		printMemOp(readerState, "MW", curOp, curEvent.ins.tid);
-	      }
-	      else if (curOp->type == REG_OP) {
-		printRegOp(readerState, "W", curOp->reg, curEvent.ins.tid);
-	      }
-	      curOp = curOp->next;
-	    }
+	if (tstate.target_addr == 0 || tstate.target_addr == prev_addr) {
+	  if (tstate.hasBin && tstate.hasData) {
+	    print_operand_info_after(readerState, &info, &curEvent);
 	  }
 	}
       }
@@ -252,60 +350,64 @@ int main(int argc, char *argv[]) {
 	ins_printed = 0;
       }
 
-      if (endStackTid == curEvent.ins.tid) {
-	uint64_t stackPtr = *((uint64_t *) getRegisterVal(readerState, LYNX_RSP, endStackTid));
-	if(stackPtr > endStackPtr) {
+      if (tstate.endStackTid == curEvent.ins.tid) {
+	uint64_t stackPtr = *((uint64_t *) getRegisterVal(readerState,
+							  LYNX_RSP,
+							  tstate.endStackTid));
+	if(stackPtr > tstate.endStackPtr) {
 	  break;
 	}
       }
-      if (curEvent.ins.fnId == endId) {
+      if (curEvent.ins.fnId == tstate.endId) {
 	break;
       }
 
       uint64_t this_instr = n++;
 
-      if (target_addr != 0) {
-	if (!(hasAddr && curEvent.ins.addr == target_addr)) {
-	  continue;
-	}
+      if (tstate.hasBin) {
+	/*
+         * Update information about the source and destination operands of
+         * the instruction.
+         */
+	fetchInsInfo(readerState, &curEvent.ins, &info);
+	curr_addr = curEvent.ins.addr;
       }
-	    
+
+      print_instr = (tstate.target_addr == 0
+		     || (tstate.hasAddr && curEvent.ins.addr == tstate.target_addr));
+
+      if (!print_instr) {
+	continue;
+      }
+      
+      ins_printed = 1;
       printf("%ld:", this_instr);
 
-      if (hasTid) {
+      if (tstate.hasTid) {
 	printf(" %d;", curEvent.ins.tid);
       }
 
-      if (hasAddr) {
+      if (tstate.hasAddr) {
 	printf(" 0x%llx;", (unsigned long long) curEvent.ins.addr);
       }
 
-      if (hasSrcId) {
+      if (tstate.hasSrcId) {
 	printf(" %s;", fetchStrFromId(readerState, curEvent.ins.srcId));
       }
 
-      if (hasFnId) {
+      if (tstate.hasFnId) {
 	printf(" %s;", fetchStrFromId(readerState, curEvent.ins.fnId));
       }
 
-      if (hasBin) {
-	/*
-	 * Update information about the source and destination operands of
-	 * the instruction.
-	 */
-	fetchInsInfo(readerState, &curEvent.ins, &info);
-	
+      if (tstate.hasBin) {
 	int i;
 	for (i = 0; i < curEvent.ins.binSize; i++) {
 	  printf(" %02x", curEvent.ins.binary[i]);
 	}
 	
 	printf("; %s; ", info.mnemonic);
-	prev_addr = curr_addr;
-	curr_addr = curEvent.ins.addr;
-	ins_printed = 1;
 
-	if (hasData) {
+	if (tstate.hasData) {
 	  ReaderOp *curOp = info.srcOps;
 	  for (i = 0; i < info.srcOpCnt; i++) {
 	    if (curOp->type == MEM_OP) {
@@ -341,7 +443,6 @@ int main(int argc, char *argv[]) {
 	      curEvent.exception.code,
 	      (unsigned long long) curEvent.exception.addr);
     }
-
     else {
       printf("UNKNOWN EVENT TYPE\n");
     }
