@@ -317,11 +317,15 @@ uint8_t canSkipTaintBecauseInsType(xed_iclass_enum_t inst){
 		    || inst == XED_ICLASS_SYSCALL_AMD);
   uint8_t isLeave = (inst == XED_ICLASS_LEAVE);
   uint8_t isEnter = (inst == XED_ICLASS_ENTER);
-  uint8_t isRIPUser = (isConditionalJump(inst) || isUnconditionalJump(inst));
+  uint8_t isRIPUser = (isConditionalJump(inst)
+		       || isUnconditionalJump(inst));
   return(isRet || isCall || isLeave || isEnter || isPushIns(inst) || isPopIns(inst) || isRIPUser);
 }
 
-void taintDests(TaintState *backTaint, Action *curAction, std::map<uint64_t, Action *> &mapLabelToAction, uint8_t keepReg){
+void taintDests(TaintState *backTaint,
+		Action *curAction,
+		std::map<uint64_t, Action *> &mapLabelToAction,
+		uint8_t keepReg){
 
   // Get a new label to apply to all dest/sources
   uint64_t actionLabel = getNewLabel(backTaint);
@@ -334,7 +338,7 @@ void taintDests(TaintState *backTaint, Action *curAction, std::map<uint64_t, Act
   // Now go through read/write ops
   op = info->readWriteOps;
   for(int i = 0; i < info->readWriteOpCnt; i++){
-    // If we have a ret/call/leave/enter/ect that reads taint from RSP/RIP, then ignore it (keepReg flag)
+    // ignore ret/call/leave/enter/etc. that reads taint from RSP/RIP (keepReg flag)
     xed_iclass_enum_t inst = info->insClass;
     if(!keepReg && canSkipTaintBecauseInsType(inst)){
       if(op->type == REG_OP){
@@ -355,7 +359,7 @@ void taintDests(TaintState *backTaint, Action *curAction, std::map<uint64_t, Act
   // Finally dstOps
   op = info->dstOps;
   for(int i = 0; i < info->dstOpCnt; i++){
-    // If we have a ret/call/leave/enter/ect that reads taint from RSP/RIP, then ignore it (keepReg flag)
+    // Ignore ret/call/leave/enter/ect that reads taint from RSP/RIP (keepReg flag)
     xed_iclass_enum_t inst = info->insClass;
     if(!keepReg && canSkipTaintBecauseInsType(inst)){
       if(op->type == REG_OP){
@@ -449,10 +453,14 @@ void visitAction(SliceState *slice, Action *action){
   slice->visited.insert(action);
 }
 
-void markRemainingActions(SliceState *slice, uint64_t posi, set<Action *> contributing, set<Action *> noncontributing){
+void markRemainingActions(SliceState *slice,
+			  uint64_t posi,
+			  set<Action *> contributing,
+			  set<Action *> noncontributing){
   uint64_t i;
   for(i = 0; i < posi; i++){
-    if(contributing.find(getActionAtIndex(slice, i)) == contributing.end() && noncontributing.find(getActionAtIndex(slice, i)) == noncontributing.end()){
+    if(contributing.find(getActionAtIndex(slice, i)) == contributing.end()
+       && noncontributing.find(getActionAtIndex(slice, i)) == noncontributing.end()){
       markAction(slice, getActionAtIndex(slice, i));
     }
   }
@@ -606,6 +614,7 @@ void printLastDefs(SliceState *slice, uint64_t numActions){
  *******************************************************************************/
 
 void build_action_list(SlicedriverState *driver_state) {
+  bool slice_addr_match, slice_pos_match;
   Action **listOfActions = (Action **) malloc(driver_state->numIns * sizeof(Action *));
   if (listOfActions == NULL) {
     fprintf(stderr, "[%s] Not enough memory\n", __func__);
@@ -646,10 +655,30 @@ void build_action_list(SlicedriverState *driver_state) {
     listOfActions[position] = this_action;
     position++;
 
-    if (instruction->event.type == INS_EVENT
-	&& instruction->event.ins.addr == driver_state->sliceAddr) {
-      driver_state->slice_start_action = this_action;
-      driver_state->num_actions = position;
+    if (instruction->event.type == INS_EVENT) {
+      slice_addr_match = (driver_state->sliceAddr != 0
+			  && instruction->event.ins.addr == driver_state->sliceAddr);
+      slice_pos_match = (driver_state->slice_pos != 0
+			 && savedInfo->event_pos == driver_state->slice_pos);
+      if (slice_addr_match || slice_pos_match) {
+	/*
+	 * if we matched on slice position, and the slice address was also specified,
+	 * check that the address at the matched position is consistent with the
+	 * specified slice address.
+	 */
+	if (slice_pos_match) {
+	  if (driver_state->sliceAddr != 0 && !slice_addr_match) {
+	    fprintf(stderr,
+		    "ERROR: Slice address 0x%lx does not match instruction address (0x%lx) at position %d\n",
+		    driver_state->sliceAddr,
+		    instruction->event.ins.addr,
+		    (int)driver_state->slice_pos);
+	    exit(1);
+	  }
+	}
+	driver_state->slice_start_action = this_action;
+	driver_state->num_actions = position;
+      }
     }
   }
 

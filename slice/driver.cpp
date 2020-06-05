@@ -87,7 +87,7 @@ void init_slice_driver(char **argv, SlicedriverState *driver_state) {
  *                                                                             *
  *******************************************************************************/
 
-//static int insctr = 0;
+static long event_posn = -1;
 
 void build_cfg(SlicedriverState *driver_state) {
   ReaderEvent curEvent;
@@ -102,16 +102,7 @@ void build_cfg(SlicedriverState *driver_state) {
   uint64_t numIns = 0;
   
   while (nextEvent(driver_state->rState, &curEvent)) {
-
-#if 0
-    printf("@@@ %d : ", insctr++);
-    if (curEvent.type != INS_EVENT) {
-      printf("[not instr]\n");
-    }
-    else {
-      printf("0x%lx\n", curEvent.ins.addr);
-    }
-#endif
+    event_posn++;
 
     if (curEvent.type == INS_EVENT) {
       if(driver_state->targetTid != -1 && curEvent.ins.tid != driver_state->targetTid) {
@@ -161,11 +152,12 @@ void build_cfg(SlicedriverState *driver_state) {
     if (cfgVal->event.type != EXCEPTION_EVENT) {
       /* not sure of the purpose of this empty IF-stmt: bug???  --SKD 6/2020 */
     }
+    
     numIns++;
     InsInfo *curInfo = new InsInfo();
     initInsInfo(curInfo);
     fetchInsInfo(driver_state->rState, &(cfgVal->event.ins), curInfo);
-        // Save reg values
+    // Save reg values
     infoTuple *saved = new infoTuple();
     saved->storedInfo = curInfo;
     if (curEvent.type == EXCEPTION_EVENT) {
@@ -174,6 +166,7 @@ void build_cfg(SlicedriverState *driver_state) {
     else {
       saved->tid = curEvent.ins.tid;
     }
+    saved->event_pos = event_posn;
 
     // If we have a PUSH, save the rsp/reg value
     xed_iclass_enum_t inst = curInfo->insClass;
@@ -221,7 +214,7 @@ void build_cfg(SlicedriverState *driver_state) {
 	op = op->next;
       }
     }
- 
+
     driver_state->insCollection->push_back(std::make_pair(cfgVal, saved));
   }
     
@@ -255,6 +248,7 @@ void init_driver_state(SlicedriverState *driver_state,
   driver_state->outfile = NULL;
   driver_state->outf = stdout;
   driver_state->sliceAddr = 0;
+  driver_state->slice_pos = 0;
   driver_state->insCollection = insCollection;
 }
 
