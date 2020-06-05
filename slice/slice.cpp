@@ -734,7 +734,10 @@ SliceState *compute_slice(SlicedriverState *driver_state){
       slice->saveableCFGInstructions.insert(act->instruction);
       save++;
       if(driver_state->validate && act->instruction->event.type != EXCEPTION_EVENT){
-        printf("%ld %lx %s\n", act->position, getAddrFromAction(act), act->instruction->block->fun->name);
+        printf("%ld; %lx; %s;\n",
+	       act->position,
+	       getAddrFromAction(act),
+	       act->instruction->block->fun->name);
       }
     } else if(act->instruction->keep != 1) {
       act->instruction->keep = 0;
@@ -742,14 +745,24 @@ SliceState *compute_slice(SlicedriverState *driver_state){
     }
   }
   
-  printf("%ld removable actions\n", remove);
-  printf("%ld contributing actions\n", save);
-  printf("%ld removable cfgInstructions\n", slice->removableCFGInstructions.size());
-  printf("%ld saveable cfgInstructions\n", slice->saveableCFGInstructions.size());
-  printf("%ld total cfgInstructions\n", slice->saveableCFGInstructions.size() + slice->removableCFGInstructions.size());
-  printf("%ld iterations of outer loop\n\n", iterationsOuter);
-
-  print_slice_instrs(slice);
+#if 0
+  fprintf(driver_state->outf, "%ld removable actions\n", remove);
+  fprintf(driver_state->outf, "%ld contributing actions\n", save);
+  fprintf(driver_state->outf,
+	  "%ld removable cfgInstructions\n",
+	  slice->removableCFGInstructions.size());
+  fprintf(driver_state->outf,
+	  "%ld saveable cfgInstructions\n",
+	  slice->saveableCFGInstructions.size());
+  fprintf(driver_state->outf,
+	  "%ld total cfgInstructions\n",
+	  slice->saveableCFGInstructions.size() + slice->removableCFGInstructions.size());
+  fprintf(driver_state->outf,
+	  "%ld iterations of outer loop\n\n",
+	  iterationsOuter);
+#endif
+  
+  print_slice_instrs(slice, driver_state);
   
   return(slice);
 }

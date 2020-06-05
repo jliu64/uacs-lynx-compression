@@ -38,82 +38,102 @@ extern "C" {
 void printUsage(char *program) {
     printf("Usage: %s [OPTIONS] trace_file 0xSlicingAddress\n", program);
     printf("  OPTIONS:\n");
-    printf("    -b : begin the trace at a given function\n");
-    printf("    -e : end the trace at a given function\n");
-    printf("    -f : trace only the given function\n");
-    printf("    -t : trace only the given thread\n");
-    printf("    -i : generate cfg only from the given sources\n");
-    printf("    -s : make CFG with superblocks\n");
+    printf("    -a addr : slice backwards starting from address addr (in base 16)\n");
+    printf("    -b fn_name : begin the trace at function fn_name\n");
     printf("    -c : compress the block size in the dot file\n");
-    printf("    -v : print slice validation info\n");
-    printf("    -r : keep registers involved in taint calculations when loading from mem\n");
+    printf("    -e fn_name : end the trace at function fn_name\n");
+    printf("    -f fn_name : trace only the function fn_name\n");
     printf("    -h : print usage\n");
+    printf("    -i trace_file : read the instruction trace from file trace_file\n");
+    printf("    -o fname : generate output into the file fname; implies -p\n");
+    printf("    -p : print the slice (printed to stdout if -o is not specified)\n");
+    printf("    -r : keep registers involved in taint calculations when loading from mem\n");
+    printf("    -s : generate cfg only from the given sources\n");
+    printf("    -S : make CFG with superblocks\n");
+    printf("    -t t_id : trace only the thread with id t_id (in base 10)\n");
+    printf("    -V : print slice validation info\n");
 }
 
 
 void parseCommandLine(int argc, char *argv[], SlicedriverState *driver_state) {
-    if (argc < 3) {
+  if (argc < 3) {
+    printUsage(argv[0]);
+    exit(1);
+  }
+
+  int i;
+  char *endptr;
+  
+  for (i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "-a") == 0) {        /* address to slice from */
+      i++;
+      driver_state->sliceAddr = strtoull(argv[i], &endptr, 16);
+      if (*endptr != '\0') {
+	fprintf(stderr,
+		"WARNING: target address %s contains unexpected characters: %s\n",
+		argv[i],
+		endptr);
+      }
+    }
+    else if (strcmp("-b", argv[i]) == 0) {
+      driver_state->beginFn = argv[++i];
+    }
+    else if (strcmp("-c", argv[i]) == 0) {
+      driver_state->compress = true;
+    }
+    else if (strcmp("-e", argv[i]) == 0) {
+      driver_state->endFn = argv[++i];
+    }
+    else if (strcmp("-f", argv[i]) == 0) {
+      driver_state->traceFn = argv[++i];
+    }
+    else if (strcmp("-h", argv[i]) == 0) {
       printUsage(argv[0]);
-      exit(1);
+      exit(0);
     }
-
-    int i;
-    for(i = 1; i < argc; i++) {
-        if(argv[i][0] == '-' && strlen(argv[i]) == 2) {
-            switch(argv[i][1]) {
-                case 'b':
-                    driver_state->beginFn = argv[++i];
-                    break;
-                case 'e':
-                    driver_state->endFn = argv[++i];
-                    break;
-                case 'f':
-                    driver_state->traceFn = argv[++i];
-                    break;
-                case 't':
-                    driver_state->targetTid = strtoul(argv[++i], NULL, 10);
-                    break;
-                case 'h':
-                    printUsage(argv[0]);
-                    break;
-                case 'i':
-                    driver_state->includeSrcs.push_back(++i);
-                    break;
-                case 's':
-                    driver_state->makeSuperblocks = true;
-                    break;
-                case 'c':
-                    driver_state->compress = true;
-                    break;
-                case 'v':
-                    printf("Validating output will be created\n");
-                    driver_state->validate = true;
-                    break;
-                case 'r':
-                    printf("Keeping registers in taint calculation when loading memory addresses\n");
-                    driver_state->keepReg = 1;
-                    break;
-                default:
-                    fprintf(stderr, "Warning: Unknown Command Line Argument %s\n", argv[i]);
-                    break;
-            }
-        }
-        else {
-            if(argv[i][0] == '0'){
-              driver_state->sliceAddr = strtol(argv[i], NULL, 0);
-            } else {
-              driver_state->trace = argv[i];
-            }
-        }
+    else if (strcmp("-i", argv[i]) == 0) {
+      driver_state->trace = argv[++i];        /* input trace file */
     }
+    else if (strcmp("-o", argv[i]) == 0) {
+      driver_state->print_slice = true;
+      driver_state->outfile = argv[++i];
 
-    return;
+      driver_state->outf = fopen(driver_state->outfile, "w");
+      if (driver_state->outf == NULL) {
+	perror(driver_state->outfile);
+	exit(1);
+      }
+    }
+    else if (strcmp("-p", argv[i]) == 0) {
+      driver_state->print_slice = true;
+    }
+    else if (strcmp("-r", argv[i]) == 0) {
+      driver_state->keepReg = 1;
+    }
+    else if (strcmp("-s", argv[i]) == 0) {
+      driver_state->includeSrcs.push_back(++i);
+    }
+    else if (strcmp("-S", argv[i]) == 0) {
+      driver_state->makeSuperblocks = true;
+    }
+    else if (strcmp("-t", argv[i]) == 0) {
+      driver_state->targetTid = strtoul(argv[++i], NULL, 10);
+    }
+    else if (strcmp("-V", argv[i]) == 0) {
+      driver_state->validate = true;
+    }
+    else {
+      fprintf(stderr, "Unrecognized command line argument [ignoring]: %s\n", argv[i]);
+    }
+  }
+
+  return;
 }
 
 /*
  * print_slice_instrs() -- print out the instructions in the backward dynamic slice
  */
-void print_slice_instrs(SliceState *slice) {
+void print_slice_instrs(SliceState *slice, SlicedriverState *driver_state) {
   std::set<cfgInstruction *>::iterator iter;
   cfgInstruction *cfg_ins;
   ReaderEvent rd_event;
@@ -124,6 +144,10 @@ void print_slice_instrs(SliceState *slice) {
   xed_error_enum_t xed_err;
   char mnemonic[256];
   
+  if (!driver_state->print_slice) {
+    return;
+  }
+
   // initialize the XED tables -- one time.
   xed_tables_init();
   mmode=XED_MACHINE_MODE_LONG_64;
@@ -143,9 +167,11 @@ void print_slice_instrs(SliceState *slice) {
     assert(xed_err == XED_ERROR_NONE);
 
     getInsMnemonic(&xedIns, mnemonic, 256);
-    printf("[ph: %d] %s  %lx    %s\n",
-	   cfg_ins->phaseID, cfg_ins->block->fun->name, instr.addr, mnemonic);
+    fprintf(driver_state->outf, "[ph: %d]; %s;  %lx;    %s;\n",
+	    cfg_ins->phaseID, cfg_ins->block->fun->name, instr.addr, mnemonic);
     
   }
+
+  fclose(driver_state->outf);
 }
 
