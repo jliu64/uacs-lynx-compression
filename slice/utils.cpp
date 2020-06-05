@@ -45,6 +45,7 @@ void printUsage(char *program) {
     printf("    -f fn_name : trace only the function fn_name\n");
     printf("    -h : print usage\n");
     printf("    -i trace_file : read the instruction trace from file trace_file\n");
+    printf("    -n num : slice backwards starting at position num in the trace\n");
     printf("    -o fname : generate output into the file fname; implies -p\n");
     printf("    -p : print the slice (printed to stdout if -o is not specified)\n");
     printf("    -r : keep registers involved in taint calculations when loading from mem\n");
@@ -93,6 +94,10 @@ void parseCommandLine(int argc, char *argv[], SlicedriverState *driver_state) {
     }
     else if (strcmp("-i", argv[i]) == 0) {
       driver_state->trace = argv[++i];        /* input trace file */
+    }
+    else if (strcmp("-n", argv[i]) == 0) {
+      i++;
+      driver_state->slice_pos = strtoull(argv[i], &endptr, 0);    /* position to slice from */
     }
     else if (strcmp("-o", argv[i]) == 0) {
       driver_state->print_slice = true;

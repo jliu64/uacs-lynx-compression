@@ -40,6 +40,7 @@ struct infoTuple {
   const uint8_t *regVal;
   LynxReg reg;
   uint32_t tid;
+  uint64_t event_pos;  // position of the event in the input trace
 };
 
 struct blockSlice {
@@ -67,7 +68,8 @@ typedef struct {
   bool print_slice;
   char *outfile;
   FILE *outf;
-  uint64_t sliceAddr;
+  uint64_t sliceAddr;    // instruction address to slice from
+  uint64_t slice_pos;    // instruction position in the trace to slice from
   ReaderState *rState;
   TaintState *backTaint;
   uint64_t numIns;
