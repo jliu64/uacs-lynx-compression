@@ -87,6 +87,8 @@ void init_slice_driver(char **argv, SlicedriverState *driver_state) {
  *                                                                             *
  *******************************************************************************/
 
+//static int insctr = 0;
+
 void build_cfg(SlicedriverState *driver_state) {
   ReaderEvent curEvent;
   cfgState *cfgs = initCFG(driver_state->rState,
@@ -98,8 +100,19 @@ void build_cfg(SlicedriverState *driver_state) {
   uint64_t endStackPtr = 0;
   uint32_t endStackTid = -1;
   uint64_t numIns = 0;
-
+  
   while (nextEvent(driver_state->rState, &curEvent)) {
+
+#if 0
+    printf("@@@ %d : ", insctr++);
+    if (curEvent.type != INS_EVENT) {
+      printf("[not instr]\n");
+    }
+    else {
+      printf("0x%lx\n", curEvent.ins.addr);
+    }
+#endif
+
     if (curEvent.type == INS_EVENT) {
       if(driver_state->targetTid != -1 && curEvent.ins.tid != driver_state->targetTid) {
 	continue;
@@ -216,9 +229,11 @@ void build_cfg(SlicedriverState *driver_state) {
 
   finalizeCFG(cfgs);
 
+#if 0
   printNumIns(cfgs);
   printNumBlocks(cfgs);
   printNumEdges(cfgs);
+#endif
 }
 
 
@@ -236,6 +251,9 @@ void init_driver_state(SlicedriverState *driver_state,
   driver_state->compress = false;
   driver_state->validate = false;
   driver_state->keepReg = 0;
+  driver_state->print_slice = false;
+  driver_state->outfile = NULL;
+  driver_state->outf = stdout;
   driver_state->sliceAddr = 0;
   driver_state->insCollection = insCollection;
 }

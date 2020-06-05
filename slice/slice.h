@@ -64,6 +64,9 @@ typedef struct {
   bool compress;
   bool validate;
   bool keepReg;
+  bool print_slice;
+  char *outfile;
+  FILE *outf;
   uint64_t sliceAddr;
   ReaderState *rState;
   TaintState *backTaint;

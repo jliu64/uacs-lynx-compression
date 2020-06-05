@@ -8,6 +8,6 @@
 
 void printUsage(char *program);
 void parseCommandLine(int argc, char *argv[], SlicedriverState *driver_state);
-void print_slice_instrs(SliceState *slice);
+void print_slice_instrs(SliceState *slice, SlicedriverState *driver_state);
 
 #endif  /* __UTILS_H__ */
