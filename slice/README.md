@@ -27,7 +27,7 @@ This program computes a backward dynamic slice from a trace.
 If both the address (`-a`) and position (`-n`) to slice from are specified, the slicer checks that the address of the instruction at the position specified via `-n` matches the address specified via `-a`.
 
 ## Output
-The output produced by `slicer` lists the instructions in the backward dynamic slide one instruction per line.  Each line consists of a sequence of `;`-delimited fields in the following order:
+The output produced by `slicer` lists the instructions in the backward dynamic slice one instruction per line.  Each line consists of a sequence of `;`-delimited fields in the following order:
 
     phase id
     function name
