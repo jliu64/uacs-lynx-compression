@@ -25,7 +25,7 @@ The information produced for `ret` instructions is:
     [NNN] 0xAAAAAAAA CALLEE : INSTR -> CALLER [@call_ins: MMM]
         RETURN VALUE [%rax]: xxxxxxxx
 
-Here `NNN` is the position of the instruction in the trace; `AAAAAAAA` is its address; `CALLER` and `CALLEE` are the names of the caller and callee functions respectively; `INSTR` is the instruction; and `xxxxxxxx` are 64-bit hex values or the registers specified.  For `ret` instructions, the `@call_ins` field the position `MMM` of the matching `call` instruction.
+Here `NNN` is the position of the instruction in the trace; `AAAAAAAA` is its address; `CALLER` and `CALLEE` are the names of the caller and callee functions respectively; `INSTR` is the instruction; and `xxxxxxxx` are 64-bit hex values or the registers specified.  For `ret` instructions, the `@call_ins` field gives the position `MMM` of the matching `call` instruction.
 
 ## Improvements for the future
 The tool can be improved in a number of ways, including:
