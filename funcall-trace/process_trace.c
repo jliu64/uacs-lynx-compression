@@ -15,7 +15,15 @@
  * call_list: a stack of CallsiteInfo structs that mimics the call stack.
  */
 static CallsiteInfo *call_list = NULL;
-static uint8_t instr_was_call = 0;
+static uint8_t instr_was_call = 0, instr_was_ret = 0;
+
+/*******************************************************************************
+ *                                                                             *
+ *                                 PROTOTYPES                                  *
+ *                                                                             *
+ *******************************************************************************/
+
+static void free_csite_info(uint64_t retsite_addr);
 
 /*******************************************************************************
  *                                                                             *
@@ -80,12 +88,25 @@ static void proc_instr(FnTracer_State *f_state, ReaderIns *instr, uint64_t n) {
   xed_iclass_enum_t instr_op;
   CallsiteInfo *csite;
 
+  /*
+   * The name of the callee function is obtained as the function that the
+   * instruction following the call instruction belongs to.  To indicate that
+   * the previous instruction was a call, the variable instr_was_call is set 
+   * to 1.  In this case, the entry at the top of the CallsiteInfo stack has
+   * all the relevant fields except for the callee name filled in when the
+   * call instruction (the instruction preceding this one) was processed.
+   */
   if (instr_was_call != 0) {
     call_list->callee_fn = strdup(fetchStrFromId(f_state->reader_state, instr->fnId));
     print_instr(call_list);
   }
   instr_was_call = 0;
   
+  if (instr_was_ret != 0) {
+    free_csite_info(instr->addr);
+    instr_was_ret = 0;
+  }
+
   instr_op = f_state->ins_info->insClass;
 
   switch (instr_op) {
@@ -108,6 +129,7 @@ static void proc_instr(FnTracer_State *f_state, ReaderIns *instr, uint64_t n) {
   case XED_ICLASS_IRET:
   case XED_ICLASS_IRETD:
   case XED_ICLASS_IRETQ:
+    instr_was_ret = 1;
     break;
     
   default:
@@ -142,9 +164,38 @@ void proc_trace(FnTracer_State *f_state) {
 	  (unsigned long long) curr_event.exception.addr);
     }
     else {
-      printf("UNKNOWN EVENT TYPE\n");
+      msg(stdout, "UNKNOWN EVENT TYPE\n");
     }
   }    /* while */
 }
 
+/*******************************************************************************
+ *                                                                             *
+ * free_csite_info() -- deallocate a CallsiteInfo structure.                   *
+ *                                                                             *
+ *******************************************************************************/
+
+static void free_csite_info(uint64_t retsite_addr) {
+  CallsiteInfo *ctmp, *ctmp_prev;
+  uint64_t this_retsite_addr;
+  
+  for (ctmp = call_list; ctmp != NULL; ctmp = ctmp_prev) {
+    ctmp_prev = ctmp->prev;
+    this_retsite_addr = ctmp->retsite_addr;
+
+    call_list = call_list->prev;
+    if (call_list != NULL) {
+      call_list->next = NULL;
+    }
+    
+    free(ctmp->caller_fn);
+    free(ctmp->callee_fn);
+    free(ctmp->mnemonic);
+    free(ctmp);
+
+    if (this_retsite_addr == retsite_addr) {
+      break;
+    }
+  }
+}
 
