@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
 
   init_state(argc, argv, &f_state);
 
-  process_trace(&f_state);
+  proc_trace(&f_state);
 
   return 0;
 }

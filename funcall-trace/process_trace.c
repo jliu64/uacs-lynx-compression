@@ -11,6 +11,12 @@
 #include "utils.h"
 
 
+/*
+ * call_list: a stack of CallsiteInfo structs that mimics the call stack.
+ */
+static CallsiteInfo *call_list = NULL;
+static uint8_t instr_was_call = 0;
+
 /*******************************************************************************
  *                                                                             *
  * get_next_event() -- get the next event, update prev_addr                    *
@@ -30,20 +36,71 @@ static uint32_t get_next_event(ReaderState *reader_state,
 
 /*******************************************************************************
  *                                                                             *
+ * init_callsite_info() -- initialize callsite info for a call instruction.    *
+ *                                                                             *
+ *******************************************************************************/
+
+static CallsiteInfo *init_callsite_info(FnTracer_State *f_state,
+					ReaderIns *instr,
+					uint64_t n) {
+  CallsiteInfo *csite = alloc(sizeof(CallsiteInfo));
+  int i;
+
+  csite->ins_num = n;
+  if (f_state->has_addr) {
+    csite->callsite_addr = instr->addr;
+    csite->retsite_addr = csite->callsite_addr + instr->binSize;
+  }
+  
+  if (f_state->has_fn_id) {
+    csite->caller_fn = strdup(fetchStrFromId(f_state->reader_state, instr->fnId));
+  }
+  
+  csite->callee_fn = NULL;
+
+  if (f_state->has_bin) {
+    csite->ins_sz = instr->binSize;
+    for (i = 0; i < instr->binSize; i++) {
+      csite->ins_bytes[i] = instr->binary[i];
+    }
+    csite->mnemonic = strdup(f_state->ins_info->mnemonic);
+  }
+
+  return csite;
+}
+
+
+/*******************************************************************************
+ *                                                                             *
  * proc_instr() -- process a single instruction                                *
  *                                                                             *
  *******************************************************************************/
 
-static void proc_instr(FnTracer_State *f_state, ReaderEvent *instr, uint64_t n) {
+static void proc_instr(FnTracer_State *f_state, ReaderIns *instr, uint64_t n) {
   xed_iclass_enum_t instr_op;
-  uint8_t is_call = 0, is_ret = 0, print_ins = 0;
+  CallsiteInfo *csite;
 
+  if (instr_was_call != 0) {
+    call_list->callee_fn = strdup(fetchStrFromId(f_state->reader_state, instr->fnId));
+    print_instr(call_list);
+  }
+  instr_was_call = 0;
+  
   instr_op = f_state->ins_info->insClass;
 
   switch (instr_op) {
   case XED_ICLASS_CALL_FAR:
   case XED_ICLASS_CALL_NEAR:
-    print_ins = is_call = 1;
+    csite = init_callsite_info(f_state, instr, n);
+    /*
+     * add to global stack of CallsiteInfo structs
+     */
+    csite->prev = call_list;
+    if (call_list != NULL) {
+      call_list->next = csite;
+    }
+    call_list = csite;
+    instr_was_call = 1;
     break;
 
   case XED_ICLASS_RET_FAR:
@@ -51,36 +108,32 @@ static void proc_instr(FnTracer_State *f_state, ReaderEvent *instr, uint64_t n) 
   case XED_ICLASS_IRET:
   case XED_ICLASS_IRETD:
   case XED_ICLASS_IRETQ:
-    print_ins = is_ret = 1;
     break;
+    
   default:
     break;
   }
 
-  if (print_ins) {
-    print_instr(f_state, instr, n);
-  }
 }
-
 
 /*******************************************************************************
  *                                                                             *
- * process_trace() -- read the trace and process its instructions              *
+ * proc_trace() -- read the trace and process its instructions                 *
  *                                                                             *
  *******************************************************************************/
 
-void process_trace(FnTracer_State *f_state) {
+void proc_trace(FnTracer_State *f_state) {
   uint64_t ins_num = 0;
   uint64_t prev_addr = 0, curr_addr = 0;
   ReaderEvent curr_event;
- 
+
   while (get_next_event(f_state->reader_state, &curr_event, &prev_addr)) {
     if (curr_event.type == INS_EVENT) {
       fetchInsInfo(f_state->reader_state, &curr_event.ins, f_state->ins_info);
       curr_addr = curr_event.ins.addr;
 
       ins_num += 1;
-      proc_instr(f_state, &curr_event, ins_num);
+      proc_instr(f_state, &(curr_event.ins), ins_num);
     }
     else if (curr_event.type == EXCEPTION_EVENT) {
       msg(stderr,

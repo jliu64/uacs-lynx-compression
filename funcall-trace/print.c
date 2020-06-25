@@ -5,8 +5,7 @@
 
 #include <assert.h>
 #include <Reader.h>
-#include <XedDisassembler.h>
-#include "main.h"
+#include "process_trace.h"
 
 /* 
  * INSTR_TXT_LEN -- assumed maximum length (in bytes) of the textual 
@@ -14,9 +13,12 @@
  */
 #define INSTR_TXT_LEN  1024
 
-/*
- * print_usage() -- print out usage information
- */
+/*******************************************************************************
+ *                                                                             *
+ * print_usage() -- print out usage information                                *
+ *                                                                             *
+ *******************************************************************************/
+
 void print_usage(char *exec_name) {
   printf("Usage: %s [OPTIONS]\n", exec_name);
   printf("Options:\n");
@@ -24,39 +26,28 @@ void print_usage(char *exec_name) {
   printf("  -i trace_file : read the instruction trace from file trace_file\n");
 }
 
-/*
- * print_instr() -- print out an instruction
- */
-void print_instr(FnTracer_State *f_state, ReaderEvent *instr, uint64_t ins_num) {
-  printf("[%ld]", ins_num);
+/*******************************************************************************
+ *                                                                             *
+ * print_instr() -- print out an instruction                                   *
+ *                                                                             *
+ *******************************************************************************/
 
-  if (f_state->has_addr) {
-    printf(" 0x%llx;", (unsigned long long) instr->ins.addr);
-  }
+void print_instr(CallsiteInfo *csite) {
+  printf("[%ld] 0x%llx %s ", csite->ins_num, csite->callsite_addr, csite->caller_fn);
 
-#if 0
-  if (f_state->has_src_id) {
-    printf(" %s;", fetchStrFromId(f_state->reader_state, instr->ins.srcId));
-  }
-#endif
-
-  if (f_state->has_fn_id) {
-    printf(" %s;", fetchStrFromId(f_state->reader_state, instr->ins.fnId));
-  }
-
-  if (f_state->has_bin) {
-    int i;
-    for (i = 0; i < instr->ins.binSize; i++) {
-      printf(" %02x", instr->ins.binary[i]);
+  if (csite->ins_sz != 0) {
+    for (int i = 0; i < csite->ins_sz; i++) {
+      printf(" %02x", csite->ins_bytes[i]);
     }
 	
-    printf("; %s; ", f_state->ins_info->mnemonic);
+    printf("; %s; ", csite->mnemonic);
 
   }
 
+  if (csite->callee_fn != NULL) {
+    printf(" -> %s;", csite->callee_fn);
+  }
+  
   printf("\n");
 
 }
-
-
-
