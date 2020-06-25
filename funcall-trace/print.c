@@ -32,20 +32,32 @@ void print_usage(char *exec_name) {
  *                                                                             *
  *******************************************************************************/
 
-void print_instr(CallsiteInfo *csite) {
-  printf("[%ld] 0x%llx %s ", csite->ins_num, csite->callsite_addr, csite->caller_fn);
+void print_instr(CallInfo *csite) {
+  char *starting_fn, *ending_fn;
+  
+  printf("[%ld] 0x%lx  ", csite->ins_num, csite->instr_addr);
 
-  if (csite->ins_sz != 0) {
-    for (int i = 0; i < csite->ins_sz; i++) {
-      printf(" %02x", csite->ins_bytes[i]);
-    }
-	
-    printf("; %s; ", csite->mnemonic);
-
+  if (csite->ins_type == CALL) {
+    starting_fn = csite->caller_fn;
+    ending_fn = csite->callee_fn;
+  }
+  else {
+    starting_fn = csite->callee_fn;
+    ending_fn = csite->caller_fn;
+  }
+  
+  if (starting_fn != NULL) {
+    printf("%s : ", starting_fn);
   }
 
-  if (csite->callee_fn != NULL) {
-    printf(" -> %s;", csite->callee_fn);
+  printf(" %s ", csite->mnemonic);
+
+  if (ending_fn != NULL) {
+    printf(" -> %s", ending_fn);
+  }
+
+  if (csite->ins_type == RET && csite->callins_num != 0) {
+    printf(" [@call_ins: %ld]", csite->callins_num);
   }
   
   printf("\n");

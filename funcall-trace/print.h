@@ -16,6 +16,6 @@ void print_usage(char *exec_name);
 /*
  * print_instr() -- print out an instruction
  */
-void print_instr(CallsiteInfo *csite);
+void print_instr(CallInfo *csite);
 
 #endif  /* __PRINT_H__ */

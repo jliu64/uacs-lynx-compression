@@ -10,11 +10,11 @@
 #include "print.h"
 #include "utils.h"
 
-
 /*
- * call_list: a stack of CallsiteInfo structs that mimics the call stack.
+ * call_list: a stack of CallInfo structs that mimics the call stack.
  */
-static CallsiteInfo *call_list = NULL;
+static CallInfo *call_list = NULL;
+static CallInfo *ret_info;
 static uint8_t instr_was_call = 0, instr_was_ret = 0;
 
 /*******************************************************************************
@@ -24,40 +24,25 @@ static uint8_t instr_was_call = 0, instr_was_ret = 0;
  *******************************************************************************/
 
 static void free_csite_info(uint64_t retsite_addr);
+static CallInfo *find_call_info(uint64_t retsite_addr);
 
 /*******************************************************************************
  *                                                                             *
- * get_next_event() -- get the next event, update prev_addr                    *
+ * init_call_info() -- initialize info for a call instruction.                 *
  *                                                                             *
  *******************************************************************************/
 
-static uint32_t get_next_event(ReaderState *reader_state,
-			ReaderEvent *curr_event,
-			uint64_t *prev_addr) {
-  if (curr_event != NULL && curr_event->type == INS_EVENT) {
-    *prev_addr = curr_event->ins.addr;
-  }
+static CallInfo *init_call_info(FnTracer_State *f_state,
+				ReaderIns *instr,
+				uint64_t n) {
+  CallInfo *csite = alloc(sizeof(CallInfo));
 
-  return nextEvent(reader_state, curr_event);
-}
-
-
-/*******************************************************************************
- *                                                                             *
- * init_callsite_info() -- initialize callsite info for a call instruction.    *
- *                                                                             *
- *******************************************************************************/
-
-static CallsiteInfo *init_callsite_info(FnTracer_State *f_state,
-					ReaderIns *instr,
-					uint64_t n) {
-  CallsiteInfo *csite = alloc(sizeof(CallsiteInfo));
-  int i;
-
-  csite->ins_num = n;
+  csite->ins_type = CALL;
+  csite->callins_num = csite->ins_num = n;  
+    
   if (f_state->has_addr) {
-    csite->callsite_addr = instr->addr;
-    csite->retsite_addr = csite->callsite_addr + instr->binSize;
+    csite->instr_addr = instr->addr;
+    csite->retsite_addr = csite->instr_addr + instr->binSize;
   }
   
   if (f_state->has_fn_id) {
@@ -67,14 +52,49 @@ static CallsiteInfo *init_callsite_info(FnTracer_State *f_state,
   csite->callee_fn = NULL;
 
   if (f_state->has_bin) {
+#if 0
     csite->ins_sz = instr->binSize;
-    for (i = 0; i < instr->binSize; i++) {
+    for (int i = 0; i < instr->binSize; i++) {
       csite->ins_bytes[i] = instr->binary[i];
     }
+#endif
     csite->mnemonic = strdup(f_state->ins_info->mnemonic);
   }
 
   return csite;
+}
+
+
+/*******************************************************************************
+ *                                                                             *
+ * init_ret_info() -- initialize info for a ret instruction.                   *
+ *                                                                             *
+ *******************************************************************************/
+
+static void init_ret_info(FnTracer_State *f_state,
+			  ReaderIns *instr,
+			  uint64_t n) {
+  ret_info->ins_num = n;
+
+  if (f_state->has_addr) {
+    ret_info->instr_addr = instr->addr;
+    ret_info->retsite_addr = 0;
+  }
+  
+  ret_info->caller_fn = NULL;
+  if (f_state->has_fn_id) {
+    ret_info->callee_fn = strdup(fetchStrFromId(f_state->reader_state, instr->fnId));
+  }
+
+  if (f_state->has_bin) {
+#if 0
+    csite->ins_sz = instr->binSize;
+    for (int i = 0; i < instr->binSize; i++) {
+      csite->ins_bytes[i] = instr->binary[i];
+    }
+#endif
+    ret_info->mnemonic = strdup(f_state->ins_info->mnemonic);
+  }
 }
 
 
@@ -86,13 +106,13 @@ static CallsiteInfo *init_callsite_info(FnTracer_State *f_state,
 
 static void proc_instr(FnTracer_State *f_state, ReaderIns *instr, uint64_t n) {
   xed_iclass_enum_t instr_op;
-  CallsiteInfo *csite;
+  CallInfo *csite;
 
   /*
    * The name of the callee function is obtained as the function that the
    * instruction following the call instruction belongs to.  To indicate that
    * the previous instruction was a call, the variable instr_was_call is set 
-   * to 1.  In this case, the entry at the top of the CallsiteInfo stack has
+   * to 1.  In this case, the entry at the top of the CallInfo stack has
    * all the relevant fields except for the callee name filled in when the
    * call instruction (the instruction preceding this one) was processed.
    */
@@ -103,6 +123,13 @@ static void proc_instr(FnTracer_State *f_state, ReaderIns *instr, uint64_t n) {
   instr_was_call = 0;
   
   if (instr_was_ret != 0) {
+    ret_info->caller_fn = strdup(fetchStrFromId(f_state->reader_state, instr->fnId));
+    csite = find_call_info(instr->addr);
+    if (csite != NULL) {
+      ret_info->callins_num = csite->ins_num;
+    }
+    print_instr(ret_info);
+
     free_csite_info(instr->addr);
     instr_was_ret = 0;
   }
@@ -112,9 +139,9 @@ static void proc_instr(FnTracer_State *f_state, ReaderIns *instr, uint64_t n) {
   switch (instr_op) {
   case XED_ICLASS_CALL_FAR:
   case XED_ICLASS_CALL_NEAR:
-    csite = init_callsite_info(f_state, instr, n);
+    csite = init_call_info(f_state, instr, n);
     /*
-     * add to global stack of CallsiteInfo structs
+     * add to global stack of CallInfo structs
      */
     csite->prev = call_list;
     if (call_list != NULL) {
@@ -129,6 +156,7 @@ static void proc_instr(FnTracer_State *f_state, ReaderIns *instr, uint64_t n) {
   case XED_ICLASS_IRET:
   case XED_ICLASS_IRETD:
   case XED_ICLASS_IRETQ:
+    init_ret_info(f_state, instr, n);
     instr_was_ret = 1;
     break;
     
@@ -140,19 +168,38 @@ static void proc_instr(FnTracer_State *f_state, ReaderIns *instr, uint64_t n) {
 
 /*******************************************************************************
  *                                                                             *
+ * find_call_info() -- given a return address, return a pointer to the         *
+ * corresponding call the CallInfo stack, if one exists; NULL otherwise.       *
+ *                                                                             *
+ *******************************************************************************/
+  
+static CallInfo *find_call_info(uint64_t retsite_addr) {
+CallInfo *ctmp;
+  for (ctmp = call_list; ctmp != NULL; ctmp = ctmp->prev) {
+    if (ctmp->retsite_addr == retsite_addr) {
+      return ctmp;
+    }
+  }
+
+  return NULL;
+}
+
+/*******************************************************************************
+ *                                                                             *
  * proc_trace() -- read the trace and process its instructions                 *
  *                                                                             *
  *******************************************************************************/
 
 void proc_trace(FnTracer_State *f_state) {
   uint64_t ins_num = 0;
-  uint64_t prev_addr = 0, curr_addr = 0;
   ReaderEvent curr_event;
 
-  while (get_next_event(f_state->reader_state, &curr_event, &prev_addr)) {
+  ret_info = alloc(sizeof(CallInfo));  /* initialize for RET instrs in the trace */
+  ret_info->ins_type = RET;            /* initialize for RET instrs in the trace */
+
+  while (nextEvent(f_state->reader_state, &curr_event)) {
     if (curr_event.type == INS_EVENT) {
       fetchInsInfo(f_state->reader_state, &curr_event.ins, f_state->ins_info);
-      curr_addr = curr_event.ins.addr;
 
       ins_num += 1;
       proc_instr(f_state, &(curr_event.ins), ins_num);
@@ -171,14 +218,25 @@ void proc_trace(FnTracer_State *f_state) {
 
 /*******************************************************************************
  *                                                                             *
- * free_csite_info() -- deallocate a CallsiteInfo structure.                   *
+ * free_csite_info() -- deallocate a CallInfo structure.                   *
  *                                                                             *
  *******************************************************************************/
 
 static void free_csite_info(uint64_t retsite_addr) {
-  CallsiteInfo *ctmp, *ctmp_prev;
+  CallInfo *ctmp, *ctmp_prev;
   uint64_t this_retsite_addr;
-  
+  /*
+   * Check whether the return address appears on the CallInfo stack (it may not, 
+   * e.g., in the case of a ROP sequence).
+   */
+  if (find_call_info(retsite_addr) == NULL) {
+    printf("WARNING: return address 0x%lx not found on call stack\n", retsite_addr);
+    return;
+  }
+  /*
+   * retsite_addr appears on the call stack.  Pop the call stack up to and
+   * including the corresponding call site.
+   */
   for (ctmp = call_list; ctmp != NULL; ctmp = ctmp_prev) {
     ctmp_prev = ctmp->prev;
     this_retsite_addr = ctmp->retsite_addr;
@@ -188,9 +246,9 @@ static void free_csite_info(uint64_t retsite_addr) {
       call_list->next = NULL;
     }
     
-    free(ctmp->caller_fn);
-    free(ctmp->callee_fn);
-    free(ctmp->mnemonic);
+    if (ctmp->caller_fn != NULL) free(ctmp->caller_fn);
+    if (ctmp->callee_fn != NULL) free(ctmp->callee_fn);
+    if (ctmp->mnemonic != NULL) free(ctmp->mnemonic);
     free(ctmp);
 
     if (this_retsite_addr == retsite_addr) {
