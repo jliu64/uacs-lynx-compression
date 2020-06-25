@@ -17,6 +17,7 @@ typedef struct call_info {
   uint64_t ins_num;
   uint64_t callins_num;    /* ins no. for a call instruction (used for ret
                               instructions to indicate the matching call instr */
+  int tid;                 /* thread id */
   uint64_t instr_addr;     /* the address of the call or ret instruction */
   uint64_t retsite_addr;   /* the address the call should return to */
   char *caller_fn;         /* function name for the call instruction */
@@ -27,6 +28,7 @@ typedef struct call_info {
 #endif
   InstrType ins_type;      /* instruction type: 0 = CALL, 1 = RET */
   char *mnemonic;          /* text representation of the instruction */
+  char *args[4];           /* four arguments; or args[0] == return value */
 
   struct call_info *prev, *next;  /* doubly-linked list */
   

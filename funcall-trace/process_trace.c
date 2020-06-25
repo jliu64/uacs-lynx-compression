@@ -25,6 +25,7 @@ static uint8_t instr_was_call = 0, instr_was_ret = 0;
 
 static void free_csite_info(uint64_t retsite_addr);
 static CallInfo *find_call_info(uint64_t retsite_addr);
+static char *reg_val(FnTracer_State *f_state, LynxReg reg, int tid);
 
 /*******************************************************************************
  *                                                                             *
@@ -40,6 +41,10 @@ static CallInfo *init_call_info(FnTracer_State *f_state,
   csite->ins_type = CALL;
   csite->callins_num = csite->ins_num = n;  
     
+  if (f_state->has_tid) {
+    csite->tid = instr->tid;
+  }
+  
   if (f_state->has_addr) {
     csite->instr_addr = instr->addr;
     csite->retsite_addr = csite->instr_addr + instr->binSize;
@@ -52,14 +57,17 @@ static CallInfo *init_call_info(FnTracer_State *f_state,
   csite->callee_fn = NULL;
 
   if (f_state->has_bin) {
-#if 0
-    csite->ins_sz = instr->binSize;
-    for (int i = 0; i < instr->binSize; i++) {
-      csite->ins_bytes[i] = instr->binary[i];
-    }
-#endif
     csite->mnemonic = strdup(f_state->ins_info->mnemonic);
   }
+  /*
+   * We currently always store the first four (integer) argument registers.  
+   * A better solution would be to find out how many arguments the callee 
+   * takes  (and their types), and store argument information appropriately.
+   */
+  csite->args[0] = reg_val(f_state, LYNX_RDI, csite->tid);
+  csite->args[1] = reg_val(f_state, LYNX_RSI, csite->tid);
+  csite->args[2] = reg_val(f_state, LYNX_RDX, csite->tid);
+  csite->args[3] = reg_val(f_state, LYNX_RCX, csite->tid);
 
   return csite;
 }
@@ -76,6 +84,10 @@ static void init_ret_info(FnTracer_State *f_state,
 			  uint64_t n) {
   ret_info->ins_num = n;
 
+  if (f_state->has_tid) {
+    ret_info->tid = instr->tid;
+  }
+  
   if (f_state->has_addr) {
     ret_info->instr_addr = instr->addr;
     ret_info->retsite_addr = 0;
@@ -87,14 +99,14 @@ static void init_ret_info(FnTracer_State *f_state,
   }
 
   if (f_state->has_bin) {
-#if 0
-    csite->ins_sz = instr->binSize;
-    for (int i = 0; i < instr->binSize; i++) {
-      csite->ins_bytes[i] = instr->binary[i];
-    }
-#endif
     ret_info->mnemonic = strdup(f_state->ins_info->mnemonic);
   }
+  /*
+   * store the return value.  This code assumes the return value is always
+   * an integer.  This can and should be fixed to handle float-returning
+   * functions.
+   */
+  ret_info->args[0] = reg_val(f_state, LYNX_RAX, ret_info->tid);
 }
 
 
@@ -256,4 +268,30 @@ static void free_csite_info(uint64_t retsite_addr) {
     }
   }
 }
+
+
+/*******************************************************************************
+ *                                                                             *
+ * reg_val() -- return a string giving the value of the register specified in  *
+ * the thread and reader_state given.                                          *
+ *                                                                             *
+ *******************************************************************************/
+
+static char *reg_val(FnTracer_State *f_state, LynxReg reg, int tid) {
+  char *value_string, *ptr;
+  int i;
+
+  reg = LynxReg2FullLynxIA32EReg(reg);
+
+  value_string = alloc(2*LynxRegSize(reg) + 1);  /* + 1 for the trailing NUL */
+
+  const uint8_t *val = getRegisterVal(f_state->reader_state, reg, tid);
+
+  for(ptr = value_string, i = LynxRegSize(reg) - 1; i >= 0; i--, ptr += 2) {
+    sprintf(ptr, "%02x", val[i]);
+  }
+
+  return value_string;
+}
+
 

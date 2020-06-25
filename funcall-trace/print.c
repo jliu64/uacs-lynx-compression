@@ -47,10 +47,10 @@ void print_instr(CallInfo *csite) {
   }
   
   if (starting_fn != NULL) {
-    printf("%s : ", starting_fn);
+    printf("%s :", starting_fn);
   }
 
-  printf(" %s ", csite->mnemonic);
+  printf(" %s", csite->mnemonic);
 
   if (ending_fn != NULL) {
     printf(" -> %s", ending_fn);
@@ -59,7 +59,18 @@ void print_instr(CallInfo *csite) {
   if (csite->ins_type == RET && csite->callins_num != 0) {
     printf(" [@call_ins: %ld]", csite->callins_num);
   }
-  
   printf("\n");
+  /*
+   * print argument/return values
+   */
+  if (csite->ins_type == CALL) {
+    printf("\tARGUMENTS (assuming 4):\n");
+    printf("\t#1 [%%rdi]: %s; #2 [%%rsi]: %s; #3 [%%rdx]: %s; #4 [%%rcx]: %s\n",
+	   csite->args[0], csite->args[1], csite->args[2], csite->args[3]);
+  }
+  else {
+    printf("\tRETURN VALUE [%%rax]: %s\n", csite->args[0]);
+  }
 
+  printf("\n");
 }
