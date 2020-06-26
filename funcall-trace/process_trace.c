@@ -26,6 +26,7 @@ static uint8_t instr_was_call = 0, instr_was_ret = 0;
 static void free_csite_info(uint64_t retsite_addr);
 static CallInfo *find_call_info(uint64_t retsite_addr);
 static char *reg_val(FnTracer_State *f_state, LynxReg reg, int tid);
+static int print_this_fun(FnTracer_State *f_state, char *fname);
 
 /*******************************************************************************
  *                                                                             *
@@ -130,7 +131,9 @@ static void proc_instr(FnTracer_State *f_state, ReaderIns *instr, uint64_t n) {
    */
   if (instr_was_call != 0) {
     call_list->callee_fn = strdup(fetchStrFromId(f_state->reader_state, instr->fnId));
-    print_instr(call_list);
+    if (print_this_fun(f_state, call_list->callee_fn)) {
+      print_instr(call_list);
+    }
   }
   instr_was_call = 0;
   
@@ -140,7 +143,9 @@ static void proc_instr(FnTracer_State *f_state, ReaderIns *instr, uint64_t n) {
     if (csite != NULL) {
       ret_info->callins_num = csite->ins_num;
     }
-    print_instr(ret_info);
+    if (print_this_fun(f_state, ret_info->callee_fn)) {
+      print_instr(ret_info);
+    }
 
     free_csite_info(instr->addr);
     instr_was_ret = 0;
@@ -295,3 +300,25 @@ static char *reg_val(FnTracer_State *f_state, LynxReg reg, int tid) {
 }
 
 
+/*******************************************************************************
+ *                                                                             *
+ * print_this_fn() -- given a function name, returns 1 if the function's       *
+ * call/return info should be printed, 0 if not.                               *
+ *                                                                             *
+ *******************************************************************************/
+
+static int print_this_fun(FnTracer_State *f_state, char *fname) {
+  FuncPrintInfo *fpinfo;
+  
+  if (f_state->fpinfo == NULL) {  /* print all functions */
+    return 1;
+  }
+
+  for (fpinfo = f_state->fpinfo; fpinfo != NULL; fpinfo= fpinfo->next) {
+    if (strcmp(fpinfo->name, fname) == 0) {
+      return 1;
+    }
+  }
+
+  return 0;
+}

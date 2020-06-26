@@ -24,7 +24,22 @@ void parse_cmdline_args(int argc, char *argv[], FnTracer_State *f_state) {
     exit(1);
   }
   
+  /*
+   * Set up default arguments
+   */
+  f_state->trace_file = "trace.out";
+  f_state->fpinfo = NULL;
+
+  /*
+   * parse command-line arguments
+   */
   for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "-f") == 0) {
+      FuncPrintInfo *fpinfo = alloc(sizeof(FuncPrintInfo));
+      fpinfo->name = argv[++i];
+      fpinfo->next = f_state->fpinfo;
+      f_state->fpinfo = fpinfo;
+    }
     if (strcmp(argv[i], "-i") == 0) {  /* -i : trace file name */
       f_state->trace_file = argv[++i];
       if (f_state->trace_file[0] == '-') {

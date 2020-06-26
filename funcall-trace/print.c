@@ -22,8 +22,11 @@
 void print_usage(char *exec_name) {
   printf("Usage: %s [OPTIONS]\n", exec_name);
   printf("Options:\n");
+  printf("  -f fn_name : print call-return information about function fn_name\n");
+  printf("       (this option may be repeated)\n");
   printf("  -h : print usage\n");
   printf("  -i trace_file : read the instruction trace from file trace_file\n");
+  printf("       (default: trace.out)\n");
 }
 
 /*******************************************************************************
