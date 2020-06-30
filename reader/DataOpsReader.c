@@ -8,7 +8,7 @@
 #include <assert.h>
 #include <DataOpsDefs.h>
 #include "Buf.h"
-#include "XedDisassembler.h"
+#include <XedDisassembler.h>
 #include "ShadowMemory.h"
 #include "ShadowRegisters.h"
 #include "Verify.h"

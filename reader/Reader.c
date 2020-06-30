@@ -17,34 +17,6 @@
 #include "DataOpsReader.h"
 #include "XedDisassembler.h"
 
-struct ReaderState_t {
-    // The header of the trace file, see TraceFileHeader.h
-    FileHeader fileHeader;
-    // The trace file
-    FILE *trace;
-    // Flag if we are debugging
-    uint8_t debug;
-    // The ID of the current event
-    uint64_t curId;
-    // Information about the execution, see ReaderUtils.h
-    ExInfo exInfo;
-    // State for various things we need
-    DisassemblerState *disState;
-    MemState *memState;
-    RegState *regState;
-    FormatState formatState;
-    // Function pointers to format-specific functions
-    uint32_t (*readEvent) (FormatState, MemState *, RegState *, DisassemblerState *, 
-        ReaderEvent *, uint64_t, InsInfo *); 
-    void (*freeFormat) (FormatState); 
-    const char *(*fetchStr) (FormatState, uint32_t);
-    uint32_t (*findStr) (FormatState, const char *);
-    uint32_t (*strTableSize) (FormatState);
-    uint8_t (*hasFields) (FormatState, uint32_t);
-    uint8_t (*getLynxRegSize) (LynxReg);
-    LynxReg (*getFullLynxReg) (LynxReg);
-};
-
 /**
  * Function: readHeader
  * Description: Reads the fileHeader from the given file and places the information within header.

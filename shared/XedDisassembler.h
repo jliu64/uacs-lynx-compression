@@ -10,8 +10,7 @@
 #include "ReaderUtils.h"
 #include "Reader.h"
 #include "ShadowRegisters.h"
-
-typedef struct XedState_t DisassemblerState;
+#include "typedefs.h"
 
 //returns bytelength of binary
 DisassemblerState *setupXed_x86();

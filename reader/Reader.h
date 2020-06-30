@@ -15,12 +15,22 @@
 
 #include <stdint.h>
 #include <xed-interface.h>
+#include "typedefs.h"
+#include "XedDisassembler.h"
 #include <LynxReg.h>
 #include <TraceFileHeader.h>
+#include "ShadowMemory.h"
+#include "ShadowRegisters.h"
 
 #define getSelMask(x) (1 << x)
 
-typedef struct ReaderState_t ReaderState;
+typedef enum {
+    NONE_OP,
+    REG_OP,
+    MEM_OP,
+    UNSIGNED_IMM_OP,
+    SIGNED_IMM_OP
+} ReaderOpType;
 
 typedef struct {
     // Flags if the memory access generates an address or loads data
@@ -43,14 +53,6 @@ typedef struct {
     // Size of the memory access
     uint16_t size;
 } ReaderMemOp;
-
-typedef enum {
-    NONE_OP,
-    REG_OP,
-    MEM_OP,
-    UNSIGNED_IMM_OP,
-    SIGNED_IMM_OP
-} ReaderOpType;
 
 typedef struct ReaderOp_t {
     // Mark that is used for anything, we use it to verify operands match between trace and xed
@@ -132,6 +134,36 @@ typedef struct {
     };
 //    uint64_t eid;        // The numeric id of the event in the trace, that is the number of the event (the first event in the trace being 0)
 } ReaderEvent;
+
+typedef struct rs {
+    // The header of the trace file, see TraceFileHeader.h
+    FileHeader fileHeader;
+    // The trace file
+    FILE *trace;
+    // Flag if we are debugging
+    uint8_t debug;
+    // The ID of the current event
+    uint64_t curId;
+    // Information about the execution, see ReaderUtils.h
+    ExInfo exInfo;
+    // State for various things we need
+    DisassemblerState *disState;
+    MemState *memState;
+    RegState *regState;
+    FormatState formatState;
+    // Function pointers to format-specific functions
+    uint32_t (*readEvent) (FormatState, MemState *, RegState *, DisassemblerState *, 
+        ReaderEvent *, uint64_t, InsInfo *); 
+    void (*freeFormat) (FormatState); 
+    const char *(*fetchStr) (FormatState, uint32_t);
+    uint32_t (*findStr) (FormatState, const char *);
+    uint32_t (*strTableSize) (FormatState);
+    uint8_t (*hasFields) (FormatState, uint32_t);
+    uint8_t (*getLynxRegSize) (LynxReg);
+    LynxReg (*getFullLynxReg) (LynxReg);
+} ReaderState;
+
+//typedef struct ReaderState_t ReaderState;
 
 ReaderState *initReader(char *filename, uint32_t debug);
 
