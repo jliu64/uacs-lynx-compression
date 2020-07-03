@@ -1,4 +1,4 @@
-DEST = memalloc
+DEST = alloc_chk
 
 TOOLDIR = ..
 XEDPATH = ../../xed
