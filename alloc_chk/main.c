@@ -59,7 +59,8 @@ void parse_cmdline_args(int argc, char *argv[], FnTracer_State *f_state) {
  *                                                                             *
  *******************************************************************************/
 
-void init_state(int argc, char *argv[], FnTracer_State *f_state) {
+FnTracer_State *init_state(int argc, char *argv[]) {
+  FnTracer_State *f_state = alloc(sizeof(FnTracer_State));
   InsInfo *ins_info = alloc(sizeof(InsInfo));
 
   parse_cmdline_args(argc, argv, f_state);
@@ -88,6 +89,7 @@ void init_state(int argc, char *argv[], FnTracer_State *f_state) {
     exit(1);
   }
 
+  return f_state;
 }
 
 
@@ -98,10 +100,7 @@ void init_state(int argc, char *argv[], FnTracer_State *f_state) {
  *******************************************************************************/
 
 int main(int argc, char *argv[]) {
-  FnTracer_State *f_state = alloc(sizeof(FnTracer_State));
-
-  init_state(argc, argv, f_state);
-
+  FnTracer_State *f_state = init_state(argc, argv);
   proc_trace(f_state);
 
   return 0;
