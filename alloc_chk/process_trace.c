@@ -346,7 +346,7 @@ void proc_trace(FnTracer_State *f_state) {
    * allocate storage for per-thread information on calls and returns.  The arrays
    * allocated here are zero-initialized by alloc().
    */
-  n_threads = f_state->reader_state->exInfo.numThreads;
+  n_threads = getNumThreads(f_state->reader_state); 
   callstack_vec = alloc(n_threads * sizeof(CallInfo *));
 
   retinfo_vec = alloc(n_threads * sizeof(CallInfo *));
