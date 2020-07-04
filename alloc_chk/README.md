@@ -15,7 +15,7 @@ This program tracks heap allocations and monitors heap accesses for out-of-bound
 ## Output
 Information about heap allocations is printed out as follows:
 
-   [nnn]  allocator   allocation_size  -->  start_addr -- end_addr
+    [nnn]  allocator   allocation_size  -->  start_addr -- end_addr
 
 where:
 
