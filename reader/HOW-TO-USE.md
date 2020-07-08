@@ -22,8 +22,10 @@ Let `TOOLDIR` be the path to the directory containing the `reader` directory (i.
 
 - **Libraries:** The reader uses the XED disassembler as a dynamically linked library `libxed.so`, which should be in the file `$(XEDFILE)/obj/libxed.so`.  For performance reasons, the reader is by default compiled into a statically linked library `libtrd.a` (however, if desired it can be compiled into a dynamically linked library using the make file `Makefile-dynamic`).  To specify the libraries, use
 
+  ```
   LDFLAGS = -L$(TOOLDIR)/reader -L$(XEDPATH)/obj
   LIBS = -ltrd -lxed
+  ```
 
 - **Dynamic loader search path:** Set the variable `LD_LIBRARY_PATH` to include the directories `XEDPATH/obj` and `TOOLDIR/reader`.
 
