@@ -17,7 +17,7 @@ The current implementation of the trace writer is availabile in the directory `t
 
 The trace reader reads the instructions recorded in a trace file and provides them to various analysis tools.  Most analysis tools rely primariy on the reader; the tracer's function is simply to provide instruction traces for analysis.
 
-The current implementation of the trace reader is availabile in the directory `reader`.  It uses Intel's [XED](https://intelxed.github.io/) for disassembly.
+The current implementation of the trace reader is availabile in the directory `reader`.  It uses Intel's [XED](https://intelxed.github.io/) for disassembly.  A tutorial on how to use it is available in the file `reader/HOW-TO-USE.md`.
 
 ## Other analysis tools
 
