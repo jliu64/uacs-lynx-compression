@@ -89,7 +89,7 @@ Here, `LynxReg` refers to an enumeration of x86-64 registers used by this toolse
 To improve space efficiency, information about instructions is split into two data structures, `InsInfo` and `ReaderIns`, that are defined in the file `Reader.h`.
 
 - `InsInfo` contains information that is invariant across all occurrences of an instruction in a program.  Examples include: the source and destination operands, the textual representation of the instruction, etc.
-- `ReaderIns` contains information that may be different for different occurrences of an instruction in a program.  Examples include: the binary encoding of the instruction, its address in memory, (information about) the function it belongs to, etc.
+- `ReaderIns` contains information that may be different for different occurrences of an instruction in a program.  Examples include: the thread id of a dynamic instance of an instruction; the binary encoding of the instruction; its address in memory; (information about) the function it belongs to; etc.
 
 The `InsInfo` data structure is not updated automatically when `nextEvent()` is called (this is to make it possible to access the program's execution state after an event).  It is processed as follows (see the README file for details):
 
@@ -106,12 +106,81 @@ For example, client code to print out the address and mnemonic of each executed 
   initInsInfo(&info);    /* initialize InsInfo */
 
   /* process the trace */
-  while (nextEvent(reader_state, &curr_event)) {
-    if (curr_event.type == INS_EVENT) {    /* normal execution */
-      fetchInsInfo(reader_state, &curr_event.ins, &info);
+  while (nextEvent(reader_state, &curr_event)) {             /* update reader state */
+    if (curr_event.type == INS_EVENT) {
+      fetchInsInfo(reader_state, &curr_event.ins, &info);    /* update InsInfo */
       printf("ADDR: 0x%lx  INSTR: %s\n", curr_event.ins.addr, info.mnemonic);
     }
   }
 ```
 
 ### Instruction operands
+
+Information about the operands of an instruction is available in its `InsInfo` structure.  
+
+#### Operand categories.
+Operands fall into three categories: *source operands*, which are read by the instruction; *destination operands*, which are written by the instruction; and *read-write operands*, which are both read and written.  For any given instruction, the `InsInfo` structure provides the following information for each category of operand (see the definition of `InsInfo` in the file `Reader.h` for specifics):
+
+1) the number of operands of that category; and
+2) a collection of operands that can be iterated over.
+
+The following code shows how the destination operands of an instruction may be accessed.  In this code, the variable `i` is just a counter to keep track of the number of operands processed.
+
+``` C
+  InsInfo *info = ...;
+  ReaderOp *op;
+  ...
+  op = info->dstOps;    /* first destination operand */
+  for (int i = 0; i < info->dstOpCnt; i++) {
+    ... process op ...
+    
+    op = op->next;      /* next destination operand */
+  }
+```
+
+The handling of source and read-write operands is similar.
+
+#### Operand types
+The type of an operand `op` is given by `op->type`.  Its possible values are given by
+
+``` C
+typedef enum {
+    NONE_OP,
+    REG_OP,
+    MEM_OP,
+    UNSIGNED_IMM_OP,
+    SIGNED_IMM_OP
+} ReaderOpType;
+```
+
+Information about an operand is stored in a `ReaderOp` structure:
+
+``` C
+typedef struct ReaderOp_t {
+    uint8_t mark;
+    ReaderOpType type;    // the type of this operand 
+    union {
+        LynxReg reg;      // see the file LynxReg.h
+        ReaderMemOp mem;
+        uint64_t unsignedImm;
+        int64_t signedImm;
+    };
+    struct ReaderOp_t *next;        // Pointer to the next ReaderOp
+} ReaderOp;
+
+```
+
+#### Operand values
+Given a reader state `r_state` and an instruction with thread-id `tid`, the value of an operand `op` for the instruction can be obtained as follows:
+
+- **Register operands:** `op` is a register operand if `op.type == REG_OP`; in this case, the register is given by `op.reg`.  Suppose that this register is *r*, then the value of the register can be obtained using
+
+  <code>getRegisterVal(r_state, *r*, tid)</code>.
+  
+  Note that the function `getRegisterVal()` returns a pointer to a base-16 string representation of the value of the register. If desired, this string can be converted to a binary value using `strtoul`.
+- **Memory operands:** `op` is a memory operand if `op.type == MEM_OP`; in this case, the address and size (no. of bytes) of the memory locations referenced are given by `op.mem.addr` and `op.mem.size` respectively.  The contents of this memory region can be obtained into a buffer `buf` of appropriate size using
+
+  `getMemoryVal(r_state, op.mem.addr, op.mem.size, buf);`
+
+- **Immediate operands:** The 64-bit value of a signed immediate operand can be obtained as `op.signedImm`.  The 64-bit value of an unsigned immediate operand can be obtained as `op.unsignedImm`.
+
