@@ -22,13 +22,13 @@ void process_trace() {
 
   char *trace_file = ... ;    /* name of trace file */
   
-  /* initialize the reader */
-  reader_state = initReader(trace_file, 0);
-
   /* initialize XED tables */
   xed_tables_init();
   mmode = XED_MACHINE_MODE_LONG_64;
   stack_addr_width = XED_ADDRESS_WIDTH_64b;
+
+  /* initialize reader state */
+  reader_state = initReader(trace_file, 0);
 
   /* process the trace */
   while (nextEvent(reader_state, &curr_event)) {
@@ -101,17 +101,18 @@ The `InsInfo` data structure is not updated automatically when `nextEvent()` is 
 For example, client code to print out the address and mnemonic of each executed instruction would be something like the following (code shown earlier, e.g., to initialize XED, is omited to reduce clutter):
 
 ``` C
-  /* initialize the reader */
-  ReaderState reader_state = initReader(trace_file, 0);
   InsInfo info;
-  initInsInfo(&info);
+  ReaderState reader_state = initReader(trace_file, 0);    /* initialize reader state */
+  initInsInfo(&info);    /* initialize InsInfo */
+
 
   /* process the trace */
   while (nextEvent(reader_state, &curr_event)) {
     if (curr_event.type == INS_EVENT) {    /* normal execution */
-      fetchInsInfo(readerState, &curr_event.ins, &info);
+      fetchInsInfo(reader_state, &curr_event.ins, &info);
       printf("ADDR: 0x%lx  INSTR: %s\n", curr_event.ins.addr, info.mnemonic);
     }
   }
 ```
 
+### Instruction operands
