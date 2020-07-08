@@ -88,7 +88,30 @@ Here, `LynxReg` refers to an enumeration of x86-64 registers used by this toolse
 ### Properties of instructions
 To improve space efficiency, information about instructions is split into two data structures, `InsInfo` and `ReaderIns`, that are defined in the file `Reader.h`.
 
-- `InsInfo` contains information that is invariant across all occurrences of an instruction in a program, e.g., the source and destination operands, the textual representation of the instruction, etc.
-- `ReaderIns` contains information that may be different for different static instances of an instruction (e.g., different occurrences of `push rbp` in different functions), e.g., the binary encoding of the instruction, its address in memory, (information about) the function it belongs to, etc.
+- `InsInfo` contains information that is invariant across all occurrences of an instruction in a program.  Examples include: the source and destination operands, the textual representation of the instruction, etc.
+- `ReaderIns` contains information that may be different for different occurrences of an instruction in a program.  Examples include: the binary encoding of the instruction, its address in memory, (information about) the function it belongs to, etc.
 
+The `InsInfo` data structure is not updated automatically when `nextEvent()` is called (this is to make it possible to access the program's execution state after an event).  It is processed as follows (see the README file for details):
+
+- **Initialization**:
+  `void initInsInfo(InsInfo *info)`
+- **Update**:
+  `int fetchInsInfo(ReaderState *state, ReaderIns *ins, InsInfo *info)`
+
+For example, client code to print out the address and mnemonic of each executed instruction would be something like the following (code shown earlier, e.g., to initialize XED, is omited to reduce clutter):
+
+``` C
+  /* initialize the reader */
+  ReaderState reader_state = initReader(trace_file, 0);
+  InsInfo info;
+  initInsInfo(&info);
+
+  /* process the trace */
+  while (nextEvent(reader_state, &curr_event)) {
+    if (curr_event.type == INS_EVENT) {    /* normal execution */
+      fetchInsInfo(readerState, &curr_event.ins, &info);
+      printf("ADDR: 0x%lx  INSTR: %s\n", curr_event.ins.addr, info.mnemonic);
+    }
+  }
+```
 
