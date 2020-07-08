@@ -29,6 +29,33 @@ Let `TOOLDIR` be the path to the directory containing the `reader` directory (i.
 
 - **Dynamic loader search path:** Set the variable `LD_LIBRARY_PATH` to include the directories `XEDPATH/obj` and `TOOLDIR/reader`.
 
+Given the above, a makefile for a client application that uses the trace reader might look something like the following:
+
+```
+TOOLDIR = .....
+XEDPATH = .....
+
+INCLUDES = -I$(TOOLDIR)/reader \
+	-I$(TOOLDIR)/shared \
+	-I$(XEDPATH)/include/public/xed \
+	-I$(XEDPATH)/obj 
+LDFLAGS = -L$(TOOLDIR)/reader -L$(XEDPATH)/obj
+LIBS = -ltrd -lxed 
+
+CC = gcc
+CFLAGS = -Wall -g -O2
+
+CFILES = .....
+OFILES = $(CFILES:.c=.o)
+
+%.o : %.c
+	$(CC) $(INCLUDES) $(CFLAGS) -c $<
+
+$(TARGET) : $(OFILES)
+	$(CC) $(CFLAGS) $(OFILES) -o $(TARGET) $(LDFLAGS) $(LIBS)
+
+```
+
 ## Trace files
 A trace file is a binary file that consists of a header followed by a sequence of *events*.  Each event represents either a normal instruction execution or else an exception.  The reader provides information about each event to the client application using the reader.
 
