@@ -105,7 +105,6 @@ For example, client code to print out the address and mnemonic of each executed 
   ReaderState reader_state = initReader(trace_file, 0);    /* initialize reader state */
   initInsInfo(&info);    /* initialize InsInfo */
 
-
   /* process the trace */
   while (nextEvent(reader_state, &curr_event)) {
     if (curr_event.type == INS_EVENT) {    /* normal execution */
