@@ -2,6 +2,28 @@
 
 This document provides a high-level introduction to the trace reader.  It is not intended to be a detailed and exhaustive exposition of the trace reader API; for this, please see the README file and the source code.
 
+## Accessing the trace reader
+Accessing the trace reader requires the following:
+
+1) indicate where the compiler can find the relevant include files;
+2) indicate which libraries the compiler should link against; and
+3) indicate to the dynamic linker where to search for dynamically linked libraries.
+
+Let `TOOLDIR` be the path to the directory containing the `reader` directory (i.e., the parent of this directory) and `XEDPATH` be the path to the directory containing Intel's XED disassembler.
+
+- **Include files:** The include path for various header files mentioned below is given by:
+
+  INCLUDES = -I$(TOOLDIR)/reader \
+	-I$(TOOLDIR)/shared \
+	-I$(XEDPATH)/include/public/xed \
+	-I$(XEDPATH)/obj 
+- **Libraries:** The reader uses the XED disassembler as a dynamically linked library `libxed.so`, which should be in the file `$(XEDFILE)/obj/libxed.so`.  For performance reasons, the reader is by default compiled into a statically linked library `libtrd.a` (however, if desired it can be compiled into a dynamically linked library using the make file `Makefile-dynamic`).  To specify the libraries, use
+
+  LDFLAGS = -L$(TOOLDIR)/reader -L$(XEDPATH)/obj
+  LIBS = -ltrd -lxed
+
+- **Dynamic loader search path:** Set the variable `LD_LIBRARY_PATH` to include the directories `XEDPATH/obj` and `TOOLDIR/reader`.
+
 ## Trace files
 A trace file is a binary file that consists of a header followed by a sequence of *events*.  Each event represents either a normal instruction execution or else an exception.  The reader provides information about each event to the client application using the reader.
 
