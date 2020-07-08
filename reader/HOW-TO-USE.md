@@ -141,7 +141,7 @@ The following code shows how the destination operands of an instruction may be a
 The handling of source and read-write operands is similar.
 
 #### Operand types
-The type of an operand `op` is given by `op->type`.  Its possible values are given by
+The type of an operand `op` is given by `op.type`.  Its possible values are given by
 
 ``` C
 typedef enum {
