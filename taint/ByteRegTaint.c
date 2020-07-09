@@ -53,51 +53,54 @@ void collectRegLabels(ByteRegState *state, uint8_t *labels) {
 }
 
 /*
-* initShadowRegisters(uint32_t numThreadsInit) -- Initalizes the shadow registers with the designated amount of threads.  This
-* must be called before any other functions are called.
+ * initByteRegTaint(uint32_t numThreadsInit) -- Initalizes the shadow registers 
+ * with the designated amount of threads.  This function must be called before
+ * any other functions are called.
 */
 ByteRegState *initByteRegTaint(uint32_t numThreadsInit) {
-    ByteRegState *state = malloc(sizeof(ByteRegState));
-    if (state == NULL) {
-        throwError("Couldn't allocate ByteRegState");
+  ByteRegState *state = malloc(sizeof(ByteRegState));
+  if (state == NULL) {
+    throwError("Out of memory: ByteRegState");
+  }
+  state->numThreads = numThreadsInit;
+  state->threads = malloc(sizeof (uint8_t ***) * numThreadsInit);
+  uint64_t ***threads = state->threads;
+
+  if (state->threads == NULL) {
+    throwError("Out of memory: shadow register threads");
+  }
+
+  uint32_t i;
+  LynxReg j;
+  for (i = 0; i < numThreadsInit; i++) {
+    threads[i] = malloc(sizeof (uint8_t **) * NUM_OF_REGS);
+    if (threads[i] == NULL) {
+      throwError("Out of memory: thread in shadow registers");
     }
-    state->numThreads = numThreadsInit;
-    state->threads = malloc(sizeof (uint8_t ***) * numThreadsInit);
-    uint64_t ***threads = state->threads;
+    
+    for (j = LYNX_FIRST; j <= LYNX_LAST_FULL; j++) {
+      int size = LynxRegSize(j);
+      if(j == LYNX_GFLAGS) {
+	size *= 8;
+      }
 
-    if (state->threads == NULL) {
-        throwError("Unable to allocate space for shadow register threads");
+      threads[i][j] = malloc(sizeof(uint64_t) * size);
+      if (threads[i][j] == NULL) {
+	throwError("Out of memory: shadow register thread");
+      }
+
+      uint32_t k;
+      for (k = 0; k < size; k++) {
+	threads[i][j][k] = 0;
+      }
     }
-
-    uint32_t i;
-    LynxReg j;
-    for (i = 0; i < numThreadsInit; i++) {
-	    threads[i] = malloc(sizeof (uint8_t **) * NUM_OF_REGS);
-        if (threads[i] == NULL) {
-            throwError("Unable to allocate space for thread in shadow registers");
-        }
-	    for (j = LYNX_FIRST; j <= LYNX_LAST_FULL; j++) {
-            int size = LynxRegSize(j);
-            if(j == LYNX_GFLAGS) {
-                size *= 8;
-            }
-
-    	    threads[i][j] = malloc(sizeof(uint64_t) * size);
-            if (threads[i][j] == NULL) {
-                throwError("Unable to allocate space for register in shadow register thread");
-            }
-
-    	    uint32_t k;
-    	    for (k = 0; k < size; k++) {
-    		    threads[i][j][k] = 0;
-    	    }
-    	}
-    }
-    return state;
+  }
+  
+  return state;
 }
 
 /*
-* freeShadowRegisters(void) -- Frees all memory allocated by the shadow registers.
+ * freeShadowRegisters() -- Frees all memory allocated by the shadow registers.
 */
 void freeByteRegTaint(ByteRegState *state) {
     if (state->threads == NULL) {
@@ -117,17 +120,25 @@ void freeByteRegTaint(ByteRegState *state) {
 }
 
 /*
-* getRegisterVal(LynxReg reg, uint32_t thread) -- Returns a pointer to the beginning of the shadow register that represents reg in the
-* thread number represented by thread.  If thread is larger than the amount of threads initialized in ShadowMemory, NULL is returned.
-*/
-const uint64_t *getByteRegTaint(ByteRegState *state, LynxReg reg, uint32_t thread) {
+ * getRegisterVal(LynxReg reg, uint32_t thread) -- Returns a pointer to the 
+ * beginning of the shadow register that represents reg in the thread number
+ * represented by thread.  If thread is larger than the amount of threads 
+ * initialized in ShadowMemory, NULL is returned.
+ */
+const uint64_t *getByteRegTaint(ByteRegState *state,
+				LynxReg reg,
+				uint32_t thread) {
     if (thread >= state->numThreads) {
 	    return NULL;
     }
     return state->threads[thread][LynxReg2FullLynxReg(reg)] + LynxRegOffset(reg);
 }
 
-uint64_t getCombinedByteRegTaint(ByteRegState *state, LabelStoreState *labelState, LynxReg reg, uint32_t thread, uint64_t initLabel) {
+uint64_t getCombinedByteRegTaint(ByteRegState *state,
+				 LabelStoreState *labelState,
+				 LynxReg reg,
+				 uint32_t thread,
+				 uint64_t initLabel) {
     if(thread >= state->numThreads) {
         return initLabel;
     }
@@ -152,7 +163,11 @@ uint64_t getCombinedByteRegTaint(ByteRegState *state, LabelStoreState *labelStat
     return initLabel;
 }
 
-uint64_t getByteFlagTaint(ByteRegState *state, LabelStoreState *labelState, uint32_t thread, uint32_t flags, uint64_t curLabel) {
+uint64_t getByteFlagTaint(ByteRegState *state,
+			  LabelStoreState *labelState,
+			  uint32_t thread,
+			  uint32_t flags,
+			  uint64_t curLabel) {
     uint32_t curFlag = 1;
     uint64_t *flagTaint = state->threads[thread][LYNX_GFLAGS];
 
@@ -167,7 +182,11 @@ uint64_t getByteFlagTaint(ByteRegState *state, LabelStoreState *labelState, uint
     return curLabel;
 }
 
-void setByteFlagTaint(ByteRegState *state, LabelStoreState *labelState, uint32_t thread, uint32_t flags, uint64_t curLabel) {
+void setByteFlagTaint(ByteRegState *state,
+		      LabelStoreState *labelState,
+		      uint32_t thread,
+		      uint32_t flags,
+		      uint64_t curLabel) {
     uint32_t curFlag = 1;
     uint64_t *flagTaint = state->threads[thread][LYNX_GFLAGS];
    
@@ -180,7 +199,11 @@ void setByteFlagTaint(ByteRegState *state, LabelStoreState *labelState, uint32_t
     }   
 }
 
-void combineByteFlagTaint(ByteRegState *state, LabelStoreState *labelState, uint32_t thread, uint32_t flags, uint64_t apply) {
+void combineByteFlagTaint(ByteRegState *state,
+			  LabelStoreState *labelState,
+			  uint32_t thread,
+			  uint32_t flags,
+			  uint64_t apply) {
     uint32_t curFlag = 1;
     uint64_t *flagTaint = state->threads[thread][LYNX_GFLAGS];
 
@@ -193,7 +216,11 @@ void combineByteFlagTaint(ByteRegState *state, LabelStoreState *labelState, uint
     }   
 }
 
-void addTaintToByteReg(ByteRegState *state, LabelStoreState *labelState, LynxReg reg, uint32_t tid, uint64_t label) {
+void addTaintToByteReg(ByteRegState *state,
+		       LabelStoreState *labelState,
+		       LynxReg reg,
+		       uint32_t tid,
+		       uint64_t label) {
     uint64_t *currentReg = state->threads[tid][LynxReg2FullLynxReg(reg)] + LynxRegOffset(reg);
     uint8_t sizeInBytes = LynxRegSize(reg);
     
@@ -219,10 +246,15 @@ void setAllByteRegTaint(ByteRegState *state, LynxReg reg, uint32_t thread, uint6
 }
 
 /*
-* setThreadVal(LynxReg, uint32_t thread, uint8_t *val) -- Sets the value in the register represented by reg on the thread represented by
-* thread to the sequence of bytes in val.  Assumes val is at least the length of the given register.
-*/
-void setByteRegTaint(ByteRegState *state, LynxReg reg, uint32_t thread, const uint64_t *labels) {
+ * setThreadVal(LynxReg, uint32_t thread, uint8_t *val) -- Sets the value in 
+ * the register represented by reg on the thread represented by thread to the
+ * sequence of bytes in val.  Assumes val is at least the length of the given
+ *register.
+ */
+void setByteRegTaint(ByteRegState *state,
+		     LynxReg reg,
+		     uint32_t thread,
+		     const uint64_t *labels) {
     uint64_t *currentReg = state->threads[thread][LynxReg2FullLynxReg(reg)] + LynxRegOffset(reg);
     uint8_t sizeInBytes = LynxRegSize(reg);
     
@@ -236,7 +268,11 @@ void setByteRegTaint(ByteRegState *state, LynxReg reg, uint32_t thread, const ui
     }
 }
 
-void setByteRegTaintLoc(ByteRegState *state, LynxReg reg, uint32_t thread, uint32_t loc, uint64_t label) {
+void setByteRegTaintLoc(ByteRegState *state,
+			LynxReg reg,
+			uint32_t thread,
+			uint32_t loc,
+			uint64_t label) {
     uint64_t *curReg = state->threads[thread][LynxReg2FullLynxReg(reg)] + LynxRegOffset(reg);
     curReg[loc] = label;
 }

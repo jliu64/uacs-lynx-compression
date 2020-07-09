@@ -15,20 +15,14 @@
 uint64_t getAddrCalcTaint(TaintState *state, uint32_t tid, ReaderOp *op, uint64_t curLabel) {
     if(op->mem.seg != LYNX_INVALID) {
         curLabel = getCombinedByteRegTaint(state->regTaint, state->labelState, op->mem.seg, tid, curLabel);
-        //LynxReg parent = LynxReg2FullLynxReg(op->mem.seg);
-        //printf("Get Reg:%s\n", LynxReg2Str(parent));
     }
 
     if(op->mem.base != LYNX_INVALID) {
         curLabel = getCombinedByteRegTaint(state->regTaint, state->labelState, op->mem.base, tid, curLabel);
-        //LynxReg parent = LynxReg2FullLynxReg(op->mem.base);
-        //printf("Get Reg:%s\n", LynxReg2Str(parent));
     }
 
     if(op->mem.index != LYNX_INVALID) {
         curLabel = getCombinedByteRegTaint(state->regTaint, state->labelState, op->mem.index, tid, curLabel);
-        //LynxReg parent = LynxReg2FullLynxReg(op->mem.index);
-        //printf("Get Reg:%s\n", LynxReg2Str(parent));
     }
 
     return curLabel;
@@ -36,7 +30,6 @@ uint64_t getAddrCalcTaint(TaintState *state, uint32_t tid, ReaderOp *op, uint64_
 
 uint64_t getOpTaint(TaintState *state, uint32_t tid, ReaderOp *op, uint64_t curLabel, uint8_t keepRBP) {
     if(op->type == REG_OP) {
-        //if(op->reg != LYNX_GFLAGS && op->reg != LYNX_RIP && op->reg != LYNX_RSP) {
         if(op->reg != LYNX_GFLAGS) {
             curLabel = getCombinedByteRegTaint(state->regTaint, state->labelState, op->reg, tid, curLabel);
         }
@@ -63,7 +56,12 @@ uint64_t getOpTaint(TaintState *state, uint32_t tid, ReaderOp *op, uint64_t curL
 
 
 
-uint64_t getAddrCalcListTaint(TaintState *state, uint32_t tid, ReaderOp *ops, uint32_t cnt, uint64_t curLabel, uint8_t keepRegInAddrCalc) {
+uint64_t getAddrCalcListTaint(TaintState *state,
+			      uint32_t tid,
+			      ReaderOp *ops,
+			      uint32_t cnt,        /* no. of operands */
+			      uint64_t curLabel,
+			      uint8_t keepRegInAddrCalc) {
     if(!keepRegInAddrCalc){
       return curLabel;
     }
@@ -143,7 +141,10 @@ uint64_t getOpListTaint(TaintState *state,
         if(!keepReg && canSkipTaintBecauseInsType(inst)){
           if(ops->type == REG_OP){
             LynxReg parent = LynxReg2FullLynxReg(ops->reg);
-            if(parent == LYNX_RSP || parent == LYNX_RIP || (parent == LYNX_RBP && (inst == XED_ICLASS_LEAVE || inst == XED_ICLASS_ENTER))){
+            if (parent == LYNX_RSP
+	        || parent == LYNX_RIP
+	        || (parent == LYNX_RBP && (inst == XED_ICLASS_LEAVE
+				 	   || inst == XED_ICLASS_ENTER))) {
               ops = ops->next;
               continue;
             }
@@ -204,12 +205,16 @@ void setAllOpListTaint(TaintState *state,
     uint32_t i;
     for(i = 0; i < cnt; i++) {
         if(ops->type == REG_OP) {
-#if 0
             if(!keepReg && canSkipTaintBecauseInsType(inst)){
               if(ops->type == REG_OP){
                 LynxReg parent = LynxReg2FullLynxReg(ops->reg);
-                if(parent == LYNX_RSP || parent == LYNX_RIP || (parent == LYNX_RBP && (inst == XED_ICLASS_LEAVE || inst == XED_ICLASS_ENTER))){
-                  if((parent == LYNX_RBP && (inst == XED_ICLASS_LEAVE || inst == XED_ICLASS_ENTER))){
+                if (parent == LYNX_RSP
+		    || parent == LYNX_RIP
+		    || (parent == LYNX_RBP
+			&& (inst == XED_ICLASS_LEAVE
+					       || inst == XED_ICLASS_ENTER))) {
+                  if ((parent == LYNX_RBP
+		       && (inst == XED_ICLASS_LEAVE || inst == XED_ICLASS_ENTER))) {
                     //printf("We have a %s ins writing to %s\n", xed_iclass_enum_t2str(inst), LynxReg2Str(parent));
                   }
                   ops = ops->next;
@@ -217,7 +222,7 @@ void setAllOpListTaint(TaintState *state,
                 }
               }
             }
-#endif
+
             int size = getRegSize(state->readerState, ops->reg);
             if (size == 4) {
                 setAllRegTaint(state, tid, getFullReg(state->readerState, ops->reg), 0);
