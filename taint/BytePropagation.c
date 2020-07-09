@@ -12,75 +12,6 @@
  * Taint Fetching
  **/
 
-/*uint64_t getFlagTaint(TaintState *state, uint32_t tid, uint32_t flags, uint64_t curLabel) {
-    uint32_t curFlag = 1;
-    const uint64_t *flagTaint = getByteRegTaint(state->regTaint, LYNX_GFLAGS, tid);
-
-    int i;
-    for(i = 0; i < 32; i++) {
-        if((flags & curFlag) && (flagTaint[i] != curLabel)) {
-            curLabel = combineLabels(state->labelState, flagTaint[i], curLabel);
-        }
-        curFlag <<= 1;
-    }
-
-    return curLabel;
-}
-
-int getCombinedRegTaint(TaintState *state, uint32_t tid, LynxReg reg, uint64_t *curLabel) {
-    uint32_t size = getRegSize(state->readerState, reg);
-    const uint64_t *taint = getByteRegTaint(state->regTaint, reg, tid);
-    int tainted = 0;    
-
-    int i;
-    for(i = 0; i < size; i++) {
-        if(taint[i] != 0) {
-            if(taint[i] != *curLabel) {
-                *curLabel = combineLabels(state->labelState, taint[i], *curLabel);
-            }
-
-            tainted = 1;
-        }
-    }
-
-    return tainted;
-}
-
-int getRegTaint(TaintState *state, uint32_t tid, LynxReg reg, uint64_t *curLabels) {
-    int tainted = 0;
-    int i;
-    uint32_t size = getRegSize(state->readerState, reg);
-    const uint64_t *taint = getByteRegTaint(state->regTaint, reg, tid);
-    for(i = 0; i < size; i++) {
-        if(taint[i] != 0) {
-            if(curLabels[i] != taint[i]) {
-                curLabels[i] = combineLabels(state->labelState, curLabels[i], taint[i]);
-            }
-            tainted = 1;
-        }
-    }
-    return tainted;
-}
-
-int getMemTaint(TaintState *state, uint64_t addr, uint64_t size, uint64_t *curLabels) {
-    int tainted = 0;
-    uint64_t taint[64];
-
-    getByteMemTaint(state->memTaint, addr, size, taint);
-
-    int i;
-    for(i = 0; i < size; i++) {
-        if(taint[i] != 0) {
-            if(curLabels[i] != taint[i]) {
-                curLabels[i] = combineLabels(state->labelState, curLabels[i], taint[i]);
-            }
-            tainted = 1;
-        }
-    }
-    
-    return tainted;
-}*/
-
 uint64_t getAddrCalcTaint(TaintState *state, uint32_t tid, ReaderOp *op, uint64_t curLabel) {
     if(op->mem.seg != LYNX_INVALID) {
         curLabel = getCombinedByteRegTaint(state->regTaint, state->labelState, op->mem.seg, tid, curLabel);
@@ -147,25 +78,64 @@ uint64_t getAddrCalcListTaint(TaintState *state, uint32_t tid, ReaderOp *ops, ui
     return curLabel;
 }
 
-uint8_t isPushIns(xed_iclass_enum_t inst){
-  uint8_t res = (inst == XED_ICLASS_PUSH || inst == XED_ICLASS_PUSHA || inst == XED_ICLASS_PUSHAD || inst == XED_ICLASS_PUSHF || inst == XED_ICLASS_PUSHFD || inst == XED_ICLASS_PUSHFQ);
+uint8_t isPushIns(xed_iclass_enum_t inst) {
+  uint8_t res = (inst == XED_ICLASS_PUSH
+		 || inst == XED_ICLASS_PUSHA
+		 || inst == XED_ICLASS_PUSHAD
+		 || inst == XED_ICLASS_PUSHF
+		 || inst == XED_ICLASS_PUSHFD
+		 || inst == XED_ICLASS_PUSHFQ);
   return res;
 }
 
-uint8_t isPopIns(xed_iclass_enum_t inst){
-  uint8_t res = (inst == XED_ICLASS_POP || inst == XED_ICLASS_POPA || inst == XED_ICLASS_POPAD || inst == XED_ICLASS_POPF || inst == XED_ICLASS_POPFD || inst == XED_ICLASS_POPFQ || inst == XED_ICLASS_POPCNT);
+uint8_t isPopIns(xed_iclass_enum_t inst) {
+  uint8_t res = (inst == XED_ICLASS_POP
+		 || inst == XED_ICLASS_POPA
+		 || inst == XED_ICLASS_POPAD
+		 || inst == XED_ICLASS_POPF
+		 || inst == XED_ICLASS_POPFD
+		 || inst == XED_ICLASS_POPFQ
+		 || inst == XED_ICLASS_POPCNT);
+  return res;
+}
+
+uint8_t isCallIns(xed_iclass_enum_t inst) {
+  uint8_t res = (inst == XED_ICLASS_CALL_FAR
+		 || inst == XED_ICLASS_CALL_NEAR
+		 || inst == XED_ICLASS_SYSCALL
+		 || inst == XED_ICLASS_SYSCALL_AMD);
+  return res;
+}
+
+uint8_t isRetIns(xed_iclass_enum_t inst) {
+  uint8_t res = (inst == XED_ICLASS_RET_FAR
+		 || inst == XED_ICLASS_RET_NEAR
+		 || inst == XED_ICLASS_IRET
+		 || inst == XED_ICLASS_IRETD
+		 || inst == XED_ICLASS_IRETQ
+		 || inst == XED_ICLASS_SYSRET
+		 || inst == XED_ICLASS_SYSRET_AMD);
   return res;
 }
 
 uint8_t canSkipTaintBecauseInsType(xed_iclass_enum_t inst){
-  uint8_t isRet = (inst == XED_ICLASS_RET_FAR || inst == XED_ICLASS_RET_NEAR || inst == XED_ICLASS_IRET || inst == XED_ICLASS_IRETD || inst == XED_ICLASS_IRETQ || inst == XED_ICLASS_SYSRET || inst == XED_ICLASS_SYSRET_AMD);
-  uint8_t isCall = (inst == XED_ICLASS_CALL_FAR || inst == XED_ICLASS_CALL_NEAR || inst == XED_ICLASS_SYSCALL || inst == XED_ICLASS_SYSCALL_AMD);
   uint8_t isLeave = (inst == XED_ICLASS_LEAVE);
   uint8_t isEnter = (inst == XED_ICLASS_ENTER);
-  return(isRet || isCall || isLeave || isEnter || isPushIns(inst) || isPopIns(inst));
+  return(isRetIns(inst)
+	 || isPushIns(inst)
+	 || isPopIns(inst)
+	 || isCallIns(inst)
+	 || isLeave
+	 || isEnter);
 }
 
-uint64_t getOpListTaint(TaintState *state, uint32_t tid, ReaderOp *ops, uint32_t cnt, uint64_t curLabel, uint8_t keepReg, xed_iclass_enum_t inst) {
+uint64_t getOpListTaint(TaintState *state,
+			uint32_t tid,
+			ReaderOp *ops,
+			uint32_t cnt,
+			uint64_t curLabel,
+			uint8_t keepReg,
+			xed_iclass_enum_t inst) {
     uint32_t i;
     for(i = 0; i < cnt; i++) {
         uint8_t keepRBP = 1;
@@ -224,40 +194,17 @@ void setAllRegTaint(TaintState *state, uint32_t tid, LynxReg reg, uint64_t label
     setAllByteRegTaint(state->regTaint, reg, tid, label);
 }
 
-/*void setRegTaint(TaintState *state, ReaderEvent *event, LynxReg reg, uint64_t *labels) {
-    LynxReg fullReg = getFullReg(state->readerState, reg);
-
-    if(fullReg == LYNX_RIP || fullReg == LYNX_RSP || fullReg == LYNX_GFLAGS) {
-        return;
-    }
-
-    setByteRegTaint(state->regTaint, reg, event->ins.tid, labels);
-}
-
-void setMemTaint(TaintState *state, ReaderEvent *event, uint64_t addr, uint32_t size, uint64_t *labels) {
-    if(size != 0) {
-        setByteMemTaint(state->memTaint, addr, size, labels);
-    }
-}
-
-void setOpListTaint(TaintState *state, ReaderEvent *event, ReaderOp *ops, uint32_t cnt, uint64_t *labels) {
+void setAllOpListTaint(TaintState *state,
+		       uint32_t tid,
+		       ReaderOp *ops,
+		       uint32_t cnt,        /* no. of operands */
+		       uint64_t combined,
+		       uint8_t keepReg,
+		       xed_iclass_enum_t inst) {
     uint32_t i;
     for(i = 0; i < cnt; i++) {
         if(ops->type == REG_OP) {
-            setRegTaint(state, event, ops->reg, labels);
-        }
-        else if(ops->type == MEM_OP) {
-            setMemTaint(state, event, ops->mem.addr, ops->mem.size, labels);
-        }
-
-        ops = ops->next;
-    }
-}*/
-
-void setAllOpListTaint(TaintState *state, uint32_t tid, ReaderOp *ops, uint32_t cnt, uint64_t combined, uint8_t keepReg, xed_iclass_enum_t inst) {
-    uint32_t i;
-    for(i = 0; i < cnt; i++) {
-        if(ops->type == REG_OP) {
+#if 0
             if(!keepReg && canSkipTaintBecauseInsType(inst)){
               if(ops->type == REG_OP){
                 LynxReg parent = LynxReg2FullLynxReg(ops->reg);
@@ -270,8 +217,9 @@ void setAllOpListTaint(TaintState *state, uint32_t tid, ReaderOp *ops, uint32_t 
                 }
               }
             }
+#endif
             int size = getRegSize(state->readerState, ops->reg);
-            if(size == 4) {
+            if (size == 4) {
                 setAllRegTaint(state, tid, getFullReg(state->readerState, ops->reg), 0);
             }
 
@@ -306,55 +254,17 @@ void setAddrCalcListTaint(TaintState *state, uint32_t tid, ReaderOp *ops, uint32
     }
 }
 
-/*void setFlagTaint(TaintState *state, uint32_t tid, uint32_t flags, uint64_t label) {
-    uint32_t curFlag = 1;
-   
-    int i; 
-    for(i = 0; i < 32; i++) {
-        if(flags & curFlag) {
-            setByteRegTaintLoc(state->regTaint, LYNX_GFLAGS, tid, i, label);
-        }
-        curFlag <<= 1;
-    }
-}*/
-
-/**
- * Combine and set taint
- **/
-
-/*void combineFlagTaint(TaintState *state, uint32_t tid, uint32_t flags, uint64_t apply) {
-    uint32_t curFlag = 1;
-    uint64_t *flagTaint = (uint64_t *) getByteRegTaint(state->regTaint, LYNX_GFLAGS, tid);
-
-    int i;
-    for(i = 0; i < 32; i++) {
-        if(flags & curFlag && flagTaint[i] != apply) {
-            flagTaint[i] = combineLabels(state->labelState, flagTaint[i], apply);
-        }
-        curFlag <<= 1;
-    }
-}*/
-
 void combineAddrCalcTaint(TaintState *state, uint32_t tid, ReaderOp *op, uint64_t combined) {
     if(op->mem.seg != LYNX_INVALID) {
         addTaintToByteReg(state->regTaint, state->labelState, op->mem.seg, tid, combined);
-        /*uint32_t size = getRegSize(state->readerState, op->mem.seg);
-        uint64_t *taint = (uint64_t *) getByteRegTaint(state->regTaint, op->mem.seg, tid);
-        applyLabel(state->labelState, combined, taint, size);*/
     }
 
     if(op->mem.base != LYNX_INVALID && op->mem.base != LYNX_RIP && op->mem.base != LYNX_RSP) {
         addTaintToByteReg(state->regTaint, state->labelState, op->mem.base, tid, combined);
-        /*uint32_t size = getRegSize(state->readerState, op->mem.base);
-        uint64_t *taint = (uint64_t *) getByteRegTaint(state->regTaint, op->mem.base, tid);
-        applyLabel(state->labelState, combined, taint, size);*/
     }
 
     if(op->mem.index != LYNX_INVALID && op->mem.index != LYNX_RIP && op->mem.index != LYNX_RSP) {
         addTaintToByteReg(state->regTaint, state->labelState, op->mem.index, tid, combined);
-        /*uint32_t size = getRegSize(state->readerState, op->mem.index);
-        uint64_t *taint = (uint64_t *) getByteRegTaint(state->regTaint, op->mem.index, tid);
-        applyLabel(state->labelState, combined, taint, size);*/
     }
 }
 
@@ -377,22 +287,13 @@ void combineOpListTaint(TaintState *state, uint32_t tid, ReaderOp *ops, uint32_t
             if(fullReg == LYNX_RIP || fullReg == LYNX_RSP || fullReg == LYNX_GFLAGS) {
                 return;
             }
-
-            /*uint32_t size = getRegSize(state->readerState, ops->reg);
-            uint64_t *taint = (uint64_t *) getByteRegTaint(state->regTaint, ops->reg, tid);
-            applyLabel(state->labelState, combined, taint, size);*/
             addTaintToByteReg(state->regTaint, state->labelState, ops->reg, tid, combined);
         }
         else if(ops->type == MEM_OP) {
-            //uint64_t taint[64];
             uint64_t addr = ops->mem.addr;
             uint32_t size = ops->mem.size;
 
-            /*getByteMemTaint(state->memTaint, addr, size, taint);
-            applyLabel(state->labelState, combined, taint, size);
-            setByteMemTaint(state->memTaint, addr, size, taint);*/
             addTaintToByteMem(state->memTaint, state->labelState, addr, size, combined);
-
             combineAddrCalcTaint(state, tid, ops, combined);
         }
         ops = ops->next;
