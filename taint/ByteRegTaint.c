@@ -139,24 +139,24 @@ uint64_t getCombinedByteRegTaint(ByteRegState *state,
 				 LynxReg reg,
 				 uint32_t thread,
 				 uint64_t initLabel) {
-    if(thread >= state->numThreads) {
+    if (thread >= state->numThreads) {
         return initLabel;
     }
 
     uint64_t *currentReg = state->threads[thread][LynxReg2FullLynxReg(reg)] + LynxRegOffset(reg);
     uint8_t sizeInBytes = LynxRegSize(reg);
 
-    if(reg == LYNX_GFLAGS) {
+    if (reg == LYNX_GFLAGS) {
         sizeInBytes *= 8;
     }
 
     uint64_t lastLabel = 0;
 
     int i;
-    for(i = 0; i < sizeInBytes; i++) {
-        if(initLabel != currentReg[i] && lastLabel != currentReg[i]) {
-            initLabel = combineLabels(labelState, currentReg[i], initLabel);
-            lastLabel = currentReg[i];
+    for (i = 0; i < sizeInBytes; i++) {
+        if (initLabel != currentReg[i] && lastLabel != currentReg[i]) {
+	  initLabel = combineLabels(labelState, currentReg[i], initLabel);
+	  lastLabel = currentReg[i];
         }
     }
 
