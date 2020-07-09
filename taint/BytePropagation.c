@@ -230,7 +230,8 @@ uint64_t getOpListTaint(TaintState *state,
 	  continue;
 	}
       }
-      else if (ops->type == MEM_OP && (inst == XED_ICLASS_LEAVE || inst == XED_ICLASS_ENTER)) {
+      else if (ops->type == MEM_OP
+	       && (inst == XED_ICLASS_LEAVE || inst == XED_ICLASS_ENTER)) {
 	keepRBP = 0;
       }
     }
@@ -284,6 +285,10 @@ uint64_t getTopLevelListTaint(TaintState *state,
  *                                                                             *
  *******************************************************************************/
 
+/*
+ * setAllMemTaint() -- set the taint label for size memory locations, starting 
+ * from addr, to label.
+ */
 void setAllMemTaint(TaintState *state,
 		    uint64_t addr,
 		    uint64_t size,
