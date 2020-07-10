@@ -66,10 +66,10 @@ uint8_t canSkipTaintBecauseInsType(xed_iclass_enum_t inst){
 }
 
 /*
- * is_ordinary_reg() -- returns 1 if the argument is a valid register which
- * is not RIP or RSP; 0 o/w.
+ * is_reg_not_RIP_or_RSP() -- returns 1 if the argument is a valid register 
+ * which is not RIP or RSP; 0 o/w.
  */
-uint8_t is_ordinary_reg(LynxReg reg) {
+uint8_t is_reg_not_RIP_or_RSP(LynxReg reg) {
   return (reg != LYNX_INVALID && reg != LYNX_RIP && reg != LYNX_RSP);
 }
 
@@ -158,7 +158,7 @@ uint64_t getOpTaint(TaintState *state,
 					 curLabel);
     }
 
-    if (is_ordinary_reg(op->mem.base) && keepRBP) {
+    if (is_reg_not_RIP_or_RSP(op->mem.base) && keepRBP) {
       curLabel = getCombinedByteRegTaint(state->regTaint,
 					 state->labelState,
 					 op->mem.base,
@@ -166,7 +166,7 @@ uint64_t getOpTaint(TaintState *state,
 					 curLabel);
     }
 
-    if (is_ordinary_reg(op->mem.index) && keepRBP) {
+    if (is_reg_not_RIP_or_RSP(op->mem.index) && keepRBP) {
       curLabel = getCombinedByteRegTaint(state->regTaint,
 					 state->labelState,
 					 op->mem.index,
@@ -258,7 +258,7 @@ uint64_t getTopLevelListTaint(TaintState *state,
   uint32_t i;
   for (i = 0; i < cnt; i++) {
     if (ops->type == REG_OP) {
-      if (is_ordinary_reg(ops->reg) && ops->reg != LYNX_GFLAGS) {
+      if (is_reg_not_RIP_or_RSP(ops->reg) && ops->reg != LYNX_GFLAGS) {
 	curLabel = getCombinedByteRegTaint(state->regTaint,
 					   state->labelState,
 					   ops->reg,
@@ -413,7 +413,7 @@ void combineAddrCalcTaint(TaintState *state,
 			  combined);
     }
 
-    if (is_ordinary_reg(op->mem.base)) {
+    if (is_reg_not_RIP_or_RSP(op->mem.base)) {
         addTaintToByteReg(state->regTaint,
 			  state->labelState,
 			  op->mem.base,
@@ -421,7 +421,7 @@ void combineAddrCalcTaint(TaintState *state,
 			  combined);
     }
 
-    if (is_ordinary_reg(op->mem.index)) {
+    if (is_reg_not_RIP_or_RSP(op->mem.index)) {
         addTaintToByteReg(state->regTaint,
 			  state->labelState,
 			  op->mem.index,
@@ -490,15 +490,66 @@ void combineOpListTaint(TaintState *state,
  *                                                                             *
  *******************************************************************************/
 
-uint64_t getSrcTaint(TaintState *state, ReaderEvent *event, InsInfo *info, uint64_t curLabel, uint8_t keepRegInAddrCalc) {
-    if(info->srcFlags != 0) {
-        curLabel = getByteFlagTaint(state->regTaint, state->labelState, event->ins.tid, info->srcFlags, curLabel);
-    }
-    // See if our current ins has been written to CODE_GEN_DEPENDENCY
-    curLabel = getCombinedByteMemTaint(state->memTaint, state->labelState, event->ins.addr, event->ins.binSize, curLabel);
-    curLabel = getOpListTaint(state, event->ins.tid, info->srcOps, info->srcOpCnt, curLabel, keepRegInAddrCalc, info->insClass);
-    curLabel = getOpListTaint(state, event->ins.tid, info->readWriteOps, info->readWriteOpCnt, curLabel, keepRegInAddrCalc, info->insClass);
-    return getAddrCalcListTaint(state, event->ins.tid, info->dstOps, info->dstOpCnt, curLabel, keepRegInAddrCalc);
+/*
+ * getSrcTaint() -- get taint from all inputs to an instruction.  These are:
+ *
+ *  -- flags used by the instruction;
+ *  -- source operands and read-write operands; and
+ *  -- registers used for address computations for destination registers.
+ */
+uint64_t getSrcTaint(TaintState *state,
+		     ReaderEvent *event,
+		     InsInfo *info,
+		     uint64_t curLabel,
+		     uint8_t keepRegInAddrCalc) {
+  /*
+   * If the instruction uses any flags, propagate any taint from the flags
+   */
+  if(info->srcFlags != 0) {
+    curLabel = getByteFlagTaint(state->regTaint,
+				state->labelState,
+				event->ins.tid,
+				info->srcFlags,
+				curLabel);
+  }
+  
+  /*
+   * Propagate any taint from any of the bytes occupied by the instruction
+   * (this corresponds to a codegen dependency)
+   */
+  curLabel = getCombinedByteMemTaint(state->memTaint,
+				     state->labelState,
+				     event->ins.addr,
+				     event->ins.binSize,
+				     curLabel);
+  /*
+   * Propagate taint from the source operands and read-write operands
+   */
+  curLabel = getOpListTaint(state,
+			    event->ins.tid,
+			    info->srcOps,
+			    info->srcOpCnt,
+			    curLabel,
+			    keepRegInAddrCalc,
+			    info->insClass);
+  
+  curLabel = getOpListTaint(state,
+			    event->ins.tid,
+			    info->readWriteOps,
+			    info->readWriteOpCnt,
+			    curLabel,
+			    keepRegInAddrCalc,
+			    info->insClass);
+  /*
+   * Propagate taint from registers used for address computations for 
+   * destination operands
+   */
+  return getAddrCalcListTaint(state,
+			      event->ins.tid,
+			      info->dstOps,
+			      info->dstOpCnt,
+			      curLabel,
+			      keepRegInAddrCalc);
 }
 
 uint64_t defaultBytePropagation(TaintState *state, ReaderEvent *event, InsInfo *info, uint8_t keepRegInAddrCalc) {
