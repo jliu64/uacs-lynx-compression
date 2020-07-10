@@ -10,7 +10,7 @@
 
 /*******************************************************************************
  *                                                                             *
- *     Different classes of instructions significant for taint propagation     *
+ *      Instructions and registers handled specially for taint propagation     *
  *                                                                             *
  *******************************************************************************/
 
@@ -63,6 +63,14 @@ uint8_t canSkipTaintBecauseInsType(xed_iclass_enum_t inst){
 	 || isCallIns(inst)
 	 || isLeave
 	 || isEnter);
+}
+
+/*
+ * is_ordinary_reg() -- returns 1 if the argument is a valid register which
+ * is not RIP or RSP; 0 o/w.
+ */
+uint8_t is_ordinary_reg(LynxReg reg) {
+  return (reg != LYNX_INVALID && reg != LYNX_RIP && reg != LYNX_RSP);
 }
 
 /*******************************************************************************
@@ -150,10 +158,7 @@ uint64_t getOpTaint(TaintState *state,
 					 curLabel);
     }
 
-    if (op->mem.base != LYNX_INVALID
-	&& op->mem.base != LYNX_RIP
-	&& op->mem.base != LYNX_RSP
-	&& keepRBP) {
+    if (is_ordinary_reg(op->mem.base) && keepRBP) {
       curLabel = getCombinedByteRegTaint(state->regTaint,
 					 state->labelState,
 					 op->mem.base,
@@ -161,10 +166,7 @@ uint64_t getOpTaint(TaintState *state,
 					 curLabel);
     }
 
-    if (op->mem.index != LYNX_INVALID
-	&& op->mem.base != LYNX_RIP
-	&& op->mem.base != LYNX_RSP
-	&& keepRBP) {
+    if (is_ordinary_reg(op->mem.index) && keepRBP) {
       curLabel = getCombinedByteRegTaint(state->regTaint,
 					 state->labelState,
 					 op->mem.index,
@@ -256,9 +258,7 @@ uint64_t getTopLevelListTaint(TaintState *state,
   uint32_t i;
   for (i = 0; i < cnt; i++) {
     if (ops->type == REG_OP) {
-      if (ops->reg != LYNX_GFLAGS
-	  && ops->reg != LYNX_RIP
-	  && ops->reg != LYNX_RSP) {
+      if (is_ordinary_reg(ops->reg) && ops->reg != LYNX_GFLAGS) {
 	curLabel = getCombinedByteRegTaint(state->regTaint,
 					   state->labelState,
 					   ops->reg,
@@ -286,8 +286,8 @@ uint64_t getTopLevelListTaint(TaintState *state,
  *******************************************************************************/
 
 /*
- * setAllMemTaint() -- set the taint label for size memory locations, starting 
- * from addr, to label.
+ * setAllMemTaint() -- set the taint label for size memory locations starting 
+ * at addr to label.
  */
 void setAllMemTaint(TaintState *state,
 		    uint64_t addr,
@@ -298,6 +298,11 @@ void setAllMemTaint(TaintState *state,
     }
 }
 
+
+/*
+ * setAllRegTaint() -- set the taint label for all of the bytes of register reg 
+ * (provided that reg is not one of {RIP, RSP, GFLAGS}) to label.
+ */
 void setAllRegTaint(TaintState *state,
 		    uint32_t tid,
 		    LynxReg reg,
@@ -311,6 +316,13 @@ void setAllRegTaint(TaintState *state,
     setAllByteRegTaint(state->regTaint, reg, tid, label);
 }
 
+
+/*
+ * setAllOpListTaint() -- Set the taint label for all of the operands in ops 
+ * to the label combined.  Depending on the kind of instruction inst under
+ * consideration, and the flag keepReg, we may cut specific registers
+ * such as RSP, RIP, and RBP some slack.
+ */
 void setAllOpListTaint(TaintState *state,
 		       uint32_t tid,
 		       ReaderOp *ops,
@@ -318,44 +330,52 @@ void setAllOpListTaint(TaintState *state,
 		       uint64_t combined,
 		       uint8_t keepReg,
 		       xed_iclass_enum_t inst) {
-    uint32_t i;
-    for(i = 0; i < cnt; i++) {
-        if(ops->type == REG_OP) {
-            if(!keepReg && canSkipTaintBecauseInsType(inst)){
-              if(ops->type == REG_OP){
-                LynxReg parent = LynxReg2FullLynxReg(ops->reg);
-                if (parent == LYNX_RSP
-		    || parent == LYNX_RIP
-		    || (parent == LYNX_RBP
-			&& (inst == XED_ICLASS_LEAVE
-					       || inst == XED_ICLASS_ENTER))) {
-                  if ((parent == LYNX_RBP
-		       && (inst == XED_ICLASS_LEAVE || inst == XED_ICLASS_ENTER))) {
-                    //printf("We have a %s ins writing to %s\n", xed_iclass_enum_t2str(inst), LynxReg2Str(parent));
-                  }
-                  ops = ops->next;
-                  continue;
-                }
-              }
-            }
+  uint32_t i;
+  for (i = 0; i < cnt; i++) {
+    if (ops->type == REG_OP) {
+      if (!keepReg && canSkipTaintBecauseInsType(inst)) {
+	if (ops->type == REG_OP) {
+	  LynxReg parent = LynxReg2FullLynxReg(ops->reg);
+	  if (parent == LYNX_RSP
+	      || parent == LYNX_RIP 
+	      || (parent == LYNX_RBP 
+		  && (inst == XED_ICLASS_LEAVE || inst == XED_ICLASS_ENTER))) {
+	    if ((parent == LYNX_RBP 
+		 && (inst == XED_ICLASS_LEAVE || inst == XED_ICLASS_ENTER))) {
+	      //printf("We have a %s ins writing to %s\n",
+	      //        xed_iclass_enum_t2str(inst), LynxReg2Str(parent));
+	    }
+	    ops = ops->next;
+	    continue;
+	  }
+	}
+      }
 
-            int size = getRegSize(state->readerState, ops->reg);
-            if (size == 4) {
-                setAllRegTaint(state, tid, getFullReg(state->readerState, ops->reg), 0);
-            }
+      int size = getRegSize(state->readerState, ops->reg);
+      if (size == 4) {
+	setAllRegTaint(state, tid, getFullReg(state->readerState, ops->reg), 0);
+      }
 
-            setAllRegTaint(state, tid, ops->reg, combined);
-
-        }
-        else if(ops->type == MEM_OP) {
-            setAllMemTaint(state, ops->mem.addr, ops->mem.size, combined);
-        }
-        ops = ops->next;
+      setAllRegTaint(state, tid, ops->reg, combined);
     }
+    else if(ops->type == MEM_OP) {
+      setAllMemTaint(state, ops->mem.addr, ops->mem.size, combined);
+    }
+    ops = ops->next;
+  }
 }
 
 
-void setAddrCalcListTaint(TaintState *state, uint32_t tid, ReaderOp *ops, uint32_t cnt, uint64_t label) {
+/*
+ * setAddrCalcListTaint() -- given a set of operands ops, add label to the
+ * taint label of all of the registers involved in address calculations in 
+ * the set of operands ops.
+ */
+void setAddrCalcListTaint(TaintState *state,
+			  uint32_t tid,
+			  ReaderOp *ops,
+			  uint32_t cnt,        /* no. of operands */
+			  uint64_t label) {
     int i;
     for(i = 0; i < cnt; i++) {
         if(ops->type == MEM_OP) {
@@ -375,56 +395,100 @@ void setAddrCalcListTaint(TaintState *state, uint32_t tid, ReaderOp *ops, uint32
     }
 }
 
-void combineAddrCalcTaint(TaintState *state, uint32_t tid, ReaderOp *op, uint64_t combined) {
-    if(op->mem.seg != LYNX_INVALID) {
-        addTaintToByteReg(state->regTaint, state->labelState, op->mem.seg, tid, combined);
+
+/*
+ * combineAddrCalcTaint() -- for each register used for address calculations
+ * in operand op, set its taint to the result of combining it with the taint
+ * label combined.
+ */
+void combineAddrCalcTaint(TaintState *state,
+			  uint32_t tid,
+			  ReaderOp *op,
+			  uint64_t combined) {
+    if (op->mem.seg != LYNX_INVALID) {
+        addTaintToByteReg(state->regTaint,
+			  state->labelState,
+			  op->mem.seg,
+			  tid,
+			  combined);
     }
 
-    if(op->mem.base != LYNX_INVALID && op->mem.base != LYNX_RIP && op->mem.base != LYNX_RSP) {
-        addTaintToByteReg(state->regTaint, state->labelState, op->mem.base, tid, combined);
+    if (is_ordinary_reg(op->mem.base)) {
+        addTaintToByteReg(state->regTaint,
+			  state->labelState,
+			  op->mem.base,
+			  tid,
+			  combined);
     }
 
-    if(op->mem.index != LYNX_INVALID && op->mem.index != LYNX_RIP && op->mem.index != LYNX_RSP) {
-        addTaintToByteReg(state->regTaint, state->labelState, op->mem.index, tid, combined);
+    if (is_ordinary_reg(op->mem.index)) {
+        addTaintToByteReg(state->regTaint,
+			  state->labelState,
+			  op->mem.index,
+			  tid,
+			  combined);
     }
 }
 
-void combineAddrCalcListTaint(TaintState *state, uint32_t tid, ReaderOp *ops, uint32_t cnt, uint64_t apply) {
+
+/*
+ * combineAddrCalcListTaint() -- given a set of operands ops, add the taint
+ * label apply to the taint label for each register that is used for any
+ * address calculations in ops.
+ */
+void combineAddrCalcListTaint(TaintState *state,
+			      uint32_t tid,
+			      ReaderOp *ops,
+			      uint32_t cnt,
+			      uint64_t apply) {
     uint32_t i;
-    for(i = 0; i < cnt; i++) {
-        if(ops->type == MEM_OP) {
+    for (i = 0; i < cnt; i++) {
+        if (ops->type == MEM_OP) {
             combineAddrCalcTaint(state, tid, ops, apply);
         }
         ops = ops->next;
     }
 }
 
-void combineOpListTaint(TaintState *state, uint32_t tid, ReaderOp *ops, uint32_t cnt, uint64_t combined) {
-    uint32_t i;
-    for(i = 0; i < cnt; i++) {
-        if(ops->type == REG_OP) {
-            LynxReg fullReg = getFullReg(state->readerState, ops->reg);
 
-            if(fullReg == LYNX_RIP || fullReg == LYNX_RSP || fullReg == LYNX_GFLAGS) {
-                return;
-            }
-            addTaintToByteReg(state->regTaint, state->labelState, ops->reg, tid, combined);
-        }
-        else if(ops->type == MEM_OP) {
-            uint64_t addr = ops->mem.addr;
-            uint32_t size = ops->mem.size;
+/*
+ * combineOpListTaint() -- add the taint label combined to each operand in
+ * the set of operands ops, including registers used for address computations
+ * in ops but excluding RIP, RSP, and GFLAGS.
+ */
+void combineOpListTaint(TaintState *state,
+			uint32_t tid,
+			ReaderOp *ops,
+			uint32_t cnt,
+			uint64_t combined) {
+  uint32_t i;
+  for (i = 0; i < cnt; i++) {
+    if (ops->type == REG_OP) {
+      LynxReg reg = getFullReg(state->readerState, ops->reg);
 
-            addTaintToByteMem(state->memTaint, state->labelState, addr, size, combined);
-            combineAddrCalcTaint(state, tid, ops, combined);
-        }
-        ops = ops->next;
+      if (reg == LYNX_RIP || reg == LYNX_RSP || reg == LYNX_GFLAGS) {
+	continue;  /* <-- was 'return' but I think that was a bug -- SKD 7/20 */
+      }
+      
+      addTaintToByteReg(state->regTaint, state->labelState, ops->reg, tid, combined);
     }
+    else if (ops->type == MEM_OP) {
+      uint64_t addr = ops->mem.addr;
+      uint32_t size = ops->mem.size;
+
+      addTaintToByteMem(state->memTaint, state->labelState, addr, size, combined);
+      combineAddrCalcTaint(state, tid, ops, combined);
+    }
+    ops = ops->next;
+  }
 }
 
 
-/**
- * Forward Propagation
- **/
+/*******************************************************************************
+ *                                                                             *
+ *                             FORWARD PROPAGATION                             *
+ *                                                                             *
+ *******************************************************************************/
 
 uint64_t getSrcTaint(TaintState *state, ReaderEvent *event, InsInfo *info, uint64_t curLabel, uint8_t keepRegInAddrCalc) {
     if(info->srcFlags != 0) {
