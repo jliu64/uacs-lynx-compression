@@ -72,6 +72,34 @@ uint8_t reg_is_RIP_or_RSP(LynxReg reg) {
   return (reg == LYNX_RIP || reg == LYNX_RSP);
 }
 
+/*
+ * operands_are_identical(op1, op2) -- returns 1 if the operands op1 and op2
+ * are identical; 0 otherwise.
+ */
+uint8_t operands_are_identical(ReaderOp *op1, ReaderOp *op2) {
+  if (op1->type != op2->type) {
+    return 0;
+  }
+
+  if (op1->type == REG_OP) {
+    return (op1->reg == op2->reg);
+  }
+
+  if (op1->type == MEM_OP) {
+    return (op1->mem.addr == op2->mem.addr && op1->mem.size == op2->mem.size);
+  }
+
+  if (op1->type == UNSIGNED_IMM_OP) {
+    return (op1->unsignedImm == op2->unsignedImm);
+  }
+
+  if (op1->type == SIGNED_IMM_OP) {
+    return (op1->signedImm == op2->signedImm);
+  }
+
+  return 0;
+}
+
 /*******************************************************************************
  *                                                                             *
  *                                TAINT FETCHING                               *
@@ -609,52 +637,24 @@ uint64_t xorBytePropagation(TaintState *state,
 			    uint8_t keepRegInAddrCalc) {
   assert((info->readWriteOpCnt + info->srcOpCnt) == 2);
   ReaderOp *op1 = info->srcOps;
-  ReaderOp *op2;
+  ReaderOp *op2 = info->srcOpCnt == 2 ? info->srcOps->next : info->readWriteOps;
 
-  if (info->srcOpCnt == 2) {
-    op2 = info->srcOps->next;
-  }
-  else {
-    op2 = info->readWriteOps;
-  }
-
-  if (op1->type == REG_OP && op2->type == REG_OP) {
-    if (op1->reg == op2->reg) {
-      setAllOpListTaint(state,
-			event->ins.tid,
-			info->readWriteOps,
-			info->readWriteOpCnt,
-			0,    /* no taint */
-			keepRegInAddrCalc,
-			info->insClass);
-      setAllOpListTaint(state,
-			event->ins.tid,
-			info->dstOps,
-			info->dstOpCnt,
-			0,    /* no taint */
-			keepRegInAddrCalc,
-			info->insClass);
-      return 0;    /* no taint */
-    }
-  }
-  else if (op1->type == MEM_OP && op2->type == REG_OP) {
-    if (op1->mem.addr == op2->mem.addr && op1->mem.size == op2->mem.size) {
-      setAllOpListTaint(state,
-			event->ins.tid,
-			info->readWriteOps,
-			info->readWriteOpCnt,
-			0,    /* no taint */
-			keepRegInAddrCalc,
-			info->insClass);
-      setAllOpListTaint(state,
-			event->ins.tid,
-			info->dstOps,
-			info->dstOpCnt,
-			0,    /* no taint */
-			keepRegInAddrCalc,
-			info->insClass);
-      return 0;    /* no taint */
-    }
+  if (operands_are_identical(op1, op2)) {
+    setAllOpListTaint(state,
+		      event->ins.tid,
+		      info->readWriteOps,
+		      info->readWriteOpCnt,
+		      0,    /* no taint */
+		      keepRegInAddrCalc,
+		      info->insClass);
+    setAllOpListTaint(state,
+		      event->ins.tid,
+		      info->dstOps,
+		      info->dstOpCnt,
+		      0,    /* no taint */
+		      keepRegInAddrCalc,
+		      info->insClass);
+    return 0;    /* no taint */
   }
 
   return defaultBytePropagation(state, event, info, keepRegInAddrCalc);
@@ -749,38 +749,17 @@ uint64_t backwardBytePropagation(TaintState *state, uint32_t tid, InsInfo *info)
 
     if (info->insClass == XED_ICLASS_XOR || info->insClass == XED_ICLASS_PXOR) {
       ReaderOp *op1 = info->srcOps;
-      ReaderOp *op2;
+      ReaderOp *op2 = info->srcOpCnt == 2 ? info->srcOps->next : info->readWriteOps;
 
-      if (info->srcOpCnt == 2) {
-	op2 = info->srcOps->next;
-      }
-      else {
-	op2 = info->readWriteOps;
-      }
-
-      if (op1->type == REG_OP && op2->type == REG_OP) {
-	if (op1->reg == op2->reg) {
-	  setAllOpListTaint(state,
-			    tid,
-			    info->readWriteOps,
-			    info->readWriteOpCnt,
-			    0,
-			    0,
-			    info->insClass);
-	  return 0;
-	}
-      }
-      else if (op1->type == MEM_OP && op2->type == MEM_OP) {
-	if (op1->mem.addr == op2->mem.addr && op1->mem.size == op2->mem.size) {
-	  setAllOpListTaint(state,
-			    tid,
-			    info->readWriteOps,
-			    info->readWriteOpCnt,
-			    0,
-			    0,
-			    info->insClass);
-	  return 0;
-	}
+      if (operands_are_identical(op1, op2)) {
+	setAllOpListTaint(state,
+			  tid,
+			  info->readWriteOps,
+			  info->readWriteOpCnt,
+			  0,
+			  0,
+			  info->insClass);
+	return 0;
       }
     }
 
@@ -828,41 +807,25 @@ uint64_t backwardBytePropagationWithIns(TaintState *state,
   if (label) {
     setByteFlagTaint(state->regTaint, state->labelState, tid, info->dstFlags, 0);
     setAllOpListTaint(state, tid, info->dstOps, info->dstOpCnt, 0, 0, info->insClass);
-
+    /*
+     * An XOR with identical operands is a special case that stops the backward 
+     * flow of taint just as it stops forward taint flow.  The idea here is that
+     * since the result computed by such an instruction is identically 0, it does
+     * not make sense to propagate taint from the destination to the source ops.
+     */
     if (info->insClass == XED_ICLASS_XOR || info->insClass == XED_ICLASS_PXOR) {
       ReaderOp *op1 = info->srcOps;
-      ReaderOp *op2;
+      ReaderOp *op2 = info->srcOpCnt == 2 ? info->srcOps->next : info->readWriteOps;
 
-      if (info->srcOpCnt == 2) {
-	op2 = info->srcOps->next;
-      }
-      else {
-	op2 = info->readWriteOps;
-      }
-
-      if (op1->type == REG_OP && op2->type == REG_OP) {
-	if (op1->reg == op2->reg) {
-	  setAllOpListTaint(state,
-			    tid,
-			    info->readWriteOps,
-			    info->readWriteOpCnt,
-			    0,
-			    0,
-			    info->insClass);
-	  return 0;
-	}
-      }
-      else if (op1->type == MEM_OP && op2->type == MEM_OP) {
-	if (op1->mem.addr == op2->mem.addr && op1->mem.size == op2->mem.size) {
-	  setAllOpListTaint(state,
-			    tid,
-			    info->readWriteOps,
-			    info->readWriteOpCnt,
-			    0,
-			    0,
-			    info->insClass);
-	  return 0;
-	}
+      if (operands_are_identical(op1, op2)) {
+	setAllOpListTaint(state,
+			  tid,
+			  info->readWriteOps,
+			  info->readWriteOpCnt,
+			  0,
+			  0,
+			  info->insClass);
+	return 0;
       }
     }
 
