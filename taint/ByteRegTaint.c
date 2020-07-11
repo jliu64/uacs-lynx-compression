@@ -246,26 +246,27 @@ void setAllByteRegTaint(ByteRegState *state, LynxReg reg, uint32_t thread, uint6
 }
 
 /*
- * setThreadVal(LynxReg, uint32_t thread, uint8_t *val) -- Sets the value in 
- * the register represented by reg on the thread represented by thread to the
- * sequence of bytes in val.  Assumes val is at least the length of the given
- *register.
+ * setByteRegTaint() -- Sets the value in the register represented by reg on 
+ * the thread represented by thread to the sequence of bytes in val.  Assumes 
+ * val is at least the length of the given register.
  */
 void setByteRegTaint(ByteRegState *state,
 		     LynxReg reg,
 		     uint32_t thread,
 		     const uint64_t *labels) {
-    uint64_t *currentReg = state->threads[thread][LynxReg2FullLynxReg(reg)] + LynxRegOffset(reg);
-    uint8_t sizeInBytes = LynxRegSize(reg);
-    
-    if(reg == LYNX_GFLAGS) {
-        sizeInBytes *= 8;
-    }
+  uint64_t *cur_reg;
 
-    int i;
-    for(i = 0; i < sizeInBytes; i++) {
-        currentReg[i] = labels[i];
-    }
+  cur_reg = state->threads[thread][LynxReg2FullLynxReg(reg)] + LynxRegOffset(reg);
+  uint8_t sizeInBytes = LynxRegSize(reg);  
+    
+  if (reg == LYNX_GFLAGS) {
+    sizeInBytes *= 8;
+  }
+
+  int i;
+  for(i = 0; i < sizeInBytes; i++) {
+    cur_reg[i] = labels[i];
+  }
 }
 
 void setByteRegTaintLoc(ByteRegState *state,
@@ -273,6 +274,7 @@ void setByteRegTaintLoc(ByteRegState *state,
 			uint32_t thread,
 			uint32_t loc,
 			uint64_t label) {
-    uint64_t *curReg = state->threads[thread][LynxReg2FullLynxReg(reg)] + LynxRegOffset(reg);
-    curReg[loc] = label;
+  uint64_t *cur_reg;
+  cur_reg = state->threads[thread][LynxReg2FullLynxReg(reg)] + LynxRegOffset(reg);
+  cur_reg[loc] = label;
 }

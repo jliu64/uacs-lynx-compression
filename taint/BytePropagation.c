@@ -66,11 +66,10 @@ uint8_t canSkipTaintBecauseInsType(xed_iclass_enum_t inst){
 }
 
 /*
- * is_reg_not_RIP_or_RSP() -- returns 1 if the argument is a valid register 
- * which is not RIP or RSP; 0 o/w.
+ * reg_is_RIP_or_RSP() -- returns 1 if the argument is RIP or RSP; 0 o/w.
  */
-uint8_t is_reg_not_RIP_or_RSP(LynxReg reg) {
-  return (reg != LYNX_INVALID && reg != LYNX_RIP && reg != LYNX_RSP);
+uint8_t reg_is_RIP_or_RSP(LynxReg reg) {
+  return (reg == LYNX_RIP || reg == LYNX_RSP);
 }
 
 /*******************************************************************************
@@ -158,7 +157,7 @@ uint64_t getOpTaint(TaintState *state,
 					 curLabel);
     }
 
-    if (is_reg_not_RIP_or_RSP(op->mem.base) && keepRBP) {
+    if (keepRBP && !reg_is_RIP_or_RSP(op->mem.base)) {
       curLabel = getCombinedByteRegTaint(state->regTaint,
 					 state->labelState,
 					 op->mem.base,
@@ -166,7 +165,7 @@ uint64_t getOpTaint(TaintState *state,
 					 curLabel);
     }
 
-    if (is_reg_not_RIP_or_RSP(op->mem.index) && keepRBP) {
+    if (keepRBP && !reg_is_RIP_or_RSP(op->mem.index)) {
       curLabel = getCombinedByteRegTaint(state->regTaint,
 					 state->labelState,
 					 op->mem.index,
@@ -258,7 +257,7 @@ uint64_t getTopLevelListTaint(TaintState *state,
   uint32_t i;
   for (i = 0; i < cnt; i++) {
     if (ops->type == REG_OP) {
-      if (is_reg_not_RIP_or_RSP(ops->reg) && ops->reg != LYNX_GFLAGS) {
+      if (!reg_is_RIP_or_RSP(ops->reg) && ops->reg != LYNX_GFLAGS) {
 	curLabel = getCombinedByteRegTaint(state->regTaint,
 					   state->labelState,
 					   ops->reg,
@@ -309,7 +308,7 @@ void setAllRegTaint(TaintState *state,
 		    uint64_t label) {
     LynxReg fullReg = getFullReg(state->readerState, reg);
 
-    if (fullReg == LYNX_RIP || fullReg == LYNX_RSP || fullReg == LYNX_GFLAGS) {
+    if (reg_is_RIP_or_RSP(fullReg) || fullReg == LYNX_GFLAGS) {
         return;
     }
 
@@ -336,8 +335,7 @@ void setAllOpListTaint(TaintState *state,
       if (!keepReg && canSkipTaintBecauseInsType(inst)) {
 	if (ops->type == REG_OP) {
 	  LynxReg parent = LynxReg2FullLynxReg(ops->reg);
-	  if (parent == LYNX_RSP
-	      || parent == LYNX_RIP 
+	  if (reg_is_RIP_or_RSP(parent)
 	      || (parent == LYNX_RBP 
 		  && (inst == XED_ICLASS_LEAVE || inst == XED_ICLASS_ENTER))) {
 	    if ((parent == LYNX_RBP 
@@ -413,7 +411,7 @@ void combineAddrCalcTaint(TaintState *state,
 			  combined);
     }
 
-    if (is_reg_not_RIP_or_RSP(op->mem.base)) {
+    if (!reg_is_RIP_or_RSP(op->mem.base)) {
         addTaintToByteReg(state->regTaint,
 			  state->labelState,
 			  op->mem.base,
@@ -421,7 +419,7 @@ void combineAddrCalcTaint(TaintState *state,
 			  combined);
     }
 
-    if (is_reg_not_RIP_or_RSP(op->mem.index)) {
+    if (!reg_is_RIP_or_RSP(op->mem.index)) {
         addTaintToByteReg(state->regTaint,
 			  state->labelState,
 			  op->mem.index,
@@ -466,7 +464,7 @@ void combineOpListTaint(TaintState *state,
     if (ops->type == REG_OP) {
       LynxReg reg = getFullReg(state->readerState, ops->reg);
 
-      if (reg == LYNX_RIP || reg == LYNX_RSP || reg == LYNX_GFLAGS) {
+      if (reg_is_RIP_or_RSP(reg) || reg == LYNX_GFLAGS) {
 	continue;  /* <-- was 'return' but I think that was a bug -- SKD 7/20 */
       }
       
@@ -486,16 +484,21 @@ void combineOpListTaint(TaintState *state,
 
 /*******************************************************************************
  *                                                                             *
- *                             FORWARD PROPAGATION                             *
+ *                          FORWARD TAINT PROPAGATION                          *
  *                                                                             *
  *******************************************************************************/
 
 /*
- * getSrcTaint() -- get taint from all inputs to an instruction.  These are:
+ * getSrcTaint() -- collect the taint from all of the inputs to an instruction.  
+ * These are:
  *
- *  -- flags used by the instruction;
- *  -- source operands and read-write operands; and
- *  -- registers used for address computations for destination registers.
+ *    -- flags used by the instruction;
+ *    -- source operands and read-write operands; and
+ *    -- registers used for address computations for destination registers.
+ *
+ * If the argument keepRegInAddrCalc is zero, taint propagation from registers
+ * RSP and RIP (and sometimes RBP) is omitted for instructions, such as push, 
+ * pop, call, ret, enter, leave, etc., that manipulate the stack.
  */
 uint64_t getSrcTaint(TaintState *state,
 		     ReaderEvent *event,
@@ -542,7 +545,7 @@ uint64_t getSrcTaint(TaintState *state,
 			    info->insClass);
   /*
    * Propagate taint from registers used for address computations for 
-   * destination operands
+   * destination operands and return the resulting accumulated source taint.
    */
   return getAddrCalcListTaint(state,
 			      event->ins.tid,
@@ -552,172 +555,343 @@ uint64_t getSrcTaint(TaintState *state,
 			      keepRegInAddrCalc);
 }
 
-uint64_t defaultBytePropagation(TaintState *state, ReaderEvent *event, InsInfo *info, uint8_t keepRegInAddrCalc) {
-    uint64_t label = 0;
-    label = getSrcTaint(state, event, info, label, keepRegInAddrCalc);
 
-    setByteFlagTaint(state->regTaint, state->labelState, event->ins.tid, info->dstFlags, label);
-    setAllOpListTaint(state, event->ins.tid, info->readWriteOps, info->readWriteOpCnt, label, keepRegInAddrCalc, info->insClass);
-    setAllOpListTaint(state, event->ins.tid, info->dstOps, info->dstOpCnt, label, keepRegInAddrCalc, info->insClass);
+/*
+ * defaultBytePropagation() -- processes a single event.  It collects all of
+ * the input taint for the event and propagates this to all of the outputs
+ * of the event (dst and read-write operators as well as dst flags).  The value
+ * returned is the taint label so propagated.
+ */
+uint64_t defaultBytePropagation(TaintState *state,
+				ReaderEvent *event,
+				InsInfo *info,
+				uint8_t keepRegInAddrCalc) {
+    uint64_t label = 0;
+    /*
+     * Collect the input taint into label
+     */
+    label = getSrcTaint(state, event, info, label, keepRegInAddrCalc);
+    /*
+     * Propagate this taint (i.e., label) into the all the outputs of event
+     */
+    setByteFlagTaint(state->regTaint,
+		     state->labelState,
+		     event->ins.tid,
+		     info->dstFlags,
+		     label);
+    setAllOpListTaint(state,
+		      event->ins.tid,
+		      info->readWriteOps,
+		      info->readWriteOpCnt,
+		      label,
+		      keepRegInAddrCalc,
+		      info->insClass);
+    setAllOpListTaint(state,
+		      event->ins.tid,
+		      info->dstOps,
+		      info->dstOpCnt,
+		      label,
+		      keepRegInAddrCalc,
+		      info->insClass);
 
     return label;
 }
 
-uint64_t xorBytePropagation(TaintState *state, ReaderEvent *event, InsInfo *info, uint8_t keepRegInAddrCalc) {
-    assert((info->readWriteOpCnt + info->srcOpCnt) == 2);
-    ReaderOp *op1 = info->srcOps;
-    ReaderOp *op2;
 
-    if(info->srcOpCnt == 2) {
-        op2 = info->srcOps->next;
-    }
-    else {
-        op2 = info->readWriteOps;
-    }
+/*
+ * xorBytePropagation() -- handles taint propagation for the special case where
+ * a location (reg or mem) is XOR'd with itself, resulting in a zero value that
+ * is untainted irrespective of the taint on the locations that are XOR'd.
+ */
+uint64_t xorBytePropagation(TaintState *state,
+			    ReaderEvent *event,
+			    InsInfo *info,
+			    uint8_t keepRegInAddrCalc) {
+  assert((info->readWriteOpCnt + info->srcOpCnt) == 2);
+  ReaderOp *op1 = info->srcOps;
+  ReaderOp *op2;
 
-    if(op1->type == REG_OP && op2->type == REG_OP) {
-        if(op1->reg == op2->reg) {
-            setAllOpListTaint(state, event->ins.tid, info->readWriteOps, info->readWriteOpCnt, 0, keepRegInAddrCalc, info->insClass);
-            setAllOpListTaint(state, event->ins.tid, info->dstOps, info->dstOpCnt, 0, keepRegInAddrCalc, info->insClass);
-            return 0;
-        }
-    }
-    else if(op1->type == MEM_OP && op2->type == REG_OP) {
-        if(op1->mem.addr == op2->mem.addr && op1->mem.size == op2->mem.size) {
-            setAllOpListTaint(state, event->ins.tid, info->readWriteOps, info->readWriteOpCnt, 0, keepRegInAddrCalc, info->insClass);
-            setAllOpListTaint(state, event->ins.tid, info->dstOps, info->dstOpCnt, 0, keepRegInAddrCalc, info->insClass);
-            return 0;
-        }
-    }
+  if (info->srcOpCnt == 2) {
+    op2 = info->srcOps->next;
+  }
+  else {
+    op2 = info->readWriteOps;
+  }
 
-    return defaultBytePropagation(state, event, info, keepRegInAddrCalc);
+  if (op1->type == REG_OP && op2->type == REG_OP) {
+    if (op1->reg == op2->reg) {
+      setAllOpListTaint(state,
+			event->ins.tid,
+			info->readWriteOps,
+			info->readWriteOpCnt,
+			0,    /* no taint */
+			keepRegInAddrCalc,
+			info->insClass);
+      setAllOpListTaint(state,
+			event->ins.tid,
+			info->dstOps,
+			info->dstOpCnt,
+			0,    /* no taint */
+			keepRegInAddrCalc,
+			info->insClass);
+      return 0;    /* no taint */
+    }
+  }
+  else if (op1->type == MEM_OP && op2->type == REG_OP) {
+    if (op1->mem.addr == op2->mem.addr && op1->mem.size == op2->mem.size) {
+      setAllOpListTaint(state,
+			event->ins.tid,
+			info->readWriteOps,
+			info->readWriteOpCnt,
+			0,    /* no taint */
+			keepRegInAddrCalc,
+			info->insClass);
+      setAllOpListTaint(state,
+			event->ins.tid,
+			info->dstOps,
+			info->dstOpCnt,
+			0,    /* no taint */
+			keepRegInAddrCalc,
+			info->insClass);
+      return 0;    /* no taint */
+    }
+  }
+
+  return defaultBytePropagation(state, event, info, keepRegInAddrCalc);
 }
 
 
-void initByteHandlers(uint64_t (**handlers) (TaintState *state, ReaderEvent *event, InsInfo *info, uint8_t keepRegInAddrCalc)) {
-    int i;
-    for(i = 0; i < XED_ICLASS_LAST; i++) {
-        handlers[i] = defaultBytePropagation; 
-    }   
+/*
+ * initByteHandlers() -- initialize handlers for different instruction classes.
+ * Currently we use default taint propagation for all cases except for the case
+ * where a location is XOR'd with itself.
+ */
+void initByteHandlers(uint64_t (**handlers) (TaintState *state,
+					     ReaderEvent *event,
+					     InsInfo *info,
+					     uint8_t keepRegInAddrCalc)) {
+  int i;
+  for (i = 0; i < XED_ICLASS_LAST; i++) {
+    handlers[i] = defaultBytePropagation;
+  }
 
-    handlers[XED_ICLASS_KXORB] = xorBytePropagation;
-    handlers[XED_ICLASS_KXORD] = xorBytePropagation;
-    handlers[XED_ICLASS_KXORQ] = xorBytePropagation;
-    handlers[XED_ICLASS_KXORW] = xorBytePropagation;
-    handlers[XED_ICLASS_PXOR] = xorBytePropagation;
-    handlers[XED_ICLASS_VPXOR] = xorBytePropagation;
-    handlers[XED_ICLASS_VPXORD] = xorBytePropagation;
-    handlers[XED_ICLASS_VPXORQ] = xorBytePropagation;
-    handlers[XED_ICLASS_VXORPD] = xorBytePropagation;
-    handlers[XED_ICLASS_VXORPS] = xorBytePropagation;
-    handlers[XED_ICLASS_XOR] = xorBytePropagation;
-    handlers[XED_ICLASS_XORPD] = xorBytePropagation;
-    handlers[XED_ICLASS_XORPS] = xorBytePropagation;
+  handlers[XED_ICLASS_KXORB] = xorBytePropagation;
+  handlers[XED_ICLASS_KXORD] = xorBytePropagation;
+  handlers[XED_ICLASS_KXORQ] = xorBytePropagation;
+  handlers[XED_ICLASS_KXORW] = xorBytePropagation;
+  handlers[XED_ICLASS_PXOR] = xorBytePropagation;
+  handlers[XED_ICLASS_VPXOR] = xorBytePropagation;
+  handlers[XED_ICLASS_VPXORD] = xorBytePropagation;
+  handlers[XED_ICLASS_VPXORQ] = xorBytePropagation;
+  handlers[XED_ICLASS_VXORPD] = xorBytePropagation;
+  handlers[XED_ICLASS_VXORPS] = xorBytePropagation;
+  handlers[XED_ICLASS_XOR] = xorBytePropagation;
+  handlers[XED_ICLASS_XORPD] = xorBytePropagation;
+  handlers[XED_ICLASS_XORPS] = xorBytePropagation;
 }
 
-/**
- * Backward Propagation
- **/
+/*******************************************************************************
+ *                                                                             *
+ *                          BACKWARD TAINT PROPAGATION                         *
+ *                                                                             *
+ *******************************************************************************/
 
-uint64_t getDstTaint(TaintState *state, uint32_t tid, InsInfo *info, uint64_t curLabel) {
-    if(info->dstFlags != 0) {
-        curLabel = getByteFlagTaint(state->regTaint, state->labelState, tid, info->dstFlags, curLabel);
-    }
+/*
+ * getDstTaint() -- collect the taint from all outputs of an instruction, namely:
+ *
+ *    -- flags written by the instruction;
+ *    -- destination operands;
+ *    -- read-write operands.
+ */
+uint64_t getDstTaint(TaintState *state,
+		     uint32_t tid,
+		     InsInfo *info,
+		     uint64_t curLabel) {
+  /*
+   * Collect into label all of the taint in the destination operands and flags
+   */
+  if(info->dstFlags != 0) {
+    curLabel = getByteFlagTaint(state->regTaint,
+				state->labelState,
+				tid,
+				info->dstFlags,
+				curLabel);
+  }
     
-    curLabel = getTopLevelListTaint(state, tid, info->dstOps, info->dstOpCnt, curLabel);
-    return getTopLevelListTaint(state, tid, info->readWriteOps, info->readWriteOpCnt, curLabel);
+  curLabel = getTopLevelListTaint(state,
+				  tid,
+				  info->dstOps,
+				  info->dstOpCnt,
+				  curLabel);
+  /*
+   * Combine the resulting taint with the taint in the read-write operands
+   * and return the resulting taint.
+   */
+  return getTopLevelListTaint(state,
+			      tid,
+			      info->readWriteOps,
+			      info->readWriteOpCnt,
+			      curLabel);
 }
 
+
+/*
+ * backwardBytePropagation() -- propagate taint backwards from dst to src operands
+ */
 uint64_t backwardBytePropagation(TaintState *state, uint32_t tid, InsInfo *info) {
-    uint64_t label = 0;
+  uint64_t label = 0;
 
-    label = getDstTaint(state, tid, info, label);
+  label = getDstTaint(state, tid, info, label);
 
-    if(label) {
-        setByteFlagTaint(state->regTaint, state->labelState, tid, info->dstFlags, 0);
-        setAllOpListTaint(state, tid, info->dstOps, info->dstOpCnt, 0, 0, info->insClass);
+  if (label) {
+    setByteFlagTaint(state->regTaint, state->labelState, tid, info->dstFlags, 0);
+    setAllOpListTaint(state, tid, info->dstOps, info->dstOpCnt, 0, 0, info->insClass);
 
-        if(info->insClass == XED_ICLASS_XOR || info->insClass == XED_ICLASS_PXOR) {
-            ReaderOp *op1 = info->srcOps;
-            ReaderOp *op2;
+    if (info->insClass == XED_ICLASS_XOR || info->insClass == XED_ICLASS_PXOR) {
+      ReaderOp *op1 = info->srcOps;
+      ReaderOp *op2;
 
-            if(info->srcOpCnt == 2) {
-                op2 = info->srcOps->next;
-            }
-            else {
-                op2 = info->readWriteOps;
-            }
+      if (info->srcOpCnt == 2) {
+	op2 = info->srcOps->next;
+      }
+      else {
+	op2 = info->readWriteOps;
+      }
 
-            if(op1->type == REG_OP && op2->type == REG_OP) {
-                if(op1->reg == op2->reg) {
-                    setAllOpListTaint(state, tid, info->readWriteOps, info->readWriteOpCnt, 0, 0, info->insClass);
-                    return 0;
-                }
-            }
-            else if(op1->type == MEM_OP && op2->type == MEM_OP) {
-                if(op1->mem.addr == op2->mem.addr && op1->mem.size == op2->mem.size) {
-                    setAllOpListTaint(state, tid, info->readWriteOps, info->readWriteOpCnt, 0, 0, info->insClass);
-                    return 0;
-                }
-            }
-        }
-
-        combineByteFlagTaint(state->regTaint, state->labelState, tid, info->srcFlags, label);
-        setAllOpListTaint(state, tid, info->readWriteOps, info->readWriteOpCnt, label, 0, info->insClass);
-        combineAddrCalcListTaint(state, tid, info->readWriteOps, info->readWriteOpCnt, label);
-        combineOpListTaint(state, tid, info->srcOps, info->srcOpCnt, label);
-        combineAddrCalcListTaint(state, tid, info->dstOps, info->dstOpCnt, label);
-
-        return label;
+      if (op1->type == REG_OP && op2->type == REG_OP) {
+	if (op1->reg == op2->reg) {
+	  setAllOpListTaint(state,
+			    tid,
+			    info->readWriteOps,
+			    info->readWriteOpCnt,
+			    0,
+			    0,
+			    info->insClass);
+	  return 0;
+	}
+      }
+      else if (op1->type == MEM_OP && op2->type == MEM_OP) {
+	if (op1->mem.addr == op2->mem.addr && op1->mem.size == op2->mem.size) {
+	  setAllOpListTaint(state,
+			    tid,
+			    info->readWriteOps,
+			    info->readWriteOpCnt,
+			    0,
+			    0,
+			    info->insClass);
+	  return 0;
+	}
+      }
     }
 
-    return 0;
+    combineByteFlagTaint(state->regTaint,
+			 state->labelState,
+			 tid,
+			 info->srcFlags,
+			 label);
+    setAllOpListTaint(state,
+		      tid,
+		      info->readWriteOps,
+		      info->readWriteOpCnt,
+		      label,
+		      0,
+		      info->insClass);
+    combineAddrCalcListTaint(state,
+			     tid,
+			     info->readWriteOps,
+			     info->readWriteOpCnt,
+			     label);
+    combineOpListTaint(state,
+		       tid,
+		       info->srcOps,
+		       info->srcOpCnt,
+		       label);
+    combineAddrCalcListTaint(state,
+			     tid,
+			     info->dstOps,
+			     info->dstOpCnt,
+			     label);
+    return label;
+  }
+
+  return 0;
 }
 
-uint64_t backwardBytePropagationWithIns(TaintState *state, uint32_t tid, InsInfo *info, ReaderIns instruction) {
-    uint64_t label = 0;
+uint64_t backwardBytePropagationWithIns(TaintState *state,
+					uint32_t tid,
+					InsInfo *info,
+					ReaderIns instruction) {
+  uint64_t label = 0;
 
-    label = getDstTaint(state, tid, info, label);
+  label = getDstTaint(state, tid, info, label);
 
-    if(label) {
-        setByteFlagTaint(state->regTaint, state->labelState, tid, info->dstFlags, 0);
-        setAllOpListTaint(state, tid, info->dstOps, info->dstOpCnt, 0, 0, info->insClass);
+  if (label) {
+    setByteFlagTaint(state->regTaint, state->labelState, tid, info->dstFlags, 0);
+    setAllOpListTaint(state, tid, info->dstOps, info->dstOpCnt, 0, 0, info->insClass);
 
-        if(info->insClass == XED_ICLASS_XOR || info->insClass == XED_ICLASS_PXOR) {
-            ReaderOp *op1 = info->srcOps;
-            ReaderOp *op2;
+    if (info->insClass == XED_ICLASS_XOR || info->insClass == XED_ICLASS_PXOR) {
+      ReaderOp *op1 = info->srcOps;
+      ReaderOp *op2;
 
-            if(info->srcOpCnt == 2) {
-                op2 = info->srcOps->next;
-            }
-            else {
-                op2 = info->readWriteOps;
-            }
+      if (info->srcOpCnt == 2) {
+	op2 = info->srcOps->next;
+      }
+      else {
+	op2 = info->readWriteOps;
+      }
 
-            if(op1->type == REG_OP && op2->type == REG_OP) {
-                if(op1->reg == op2->reg) {
-                    setAllOpListTaint(state, tid, info->readWriteOps, info->readWriteOpCnt, 0, 0, info->insClass);
-                    return 0;
-                }
-            }
-            else if(op1->type == MEM_OP && op2->type == MEM_OP) {
-                if(op1->mem.addr == op2->mem.addr && op1->mem.size == op2->mem.size) {
-                    setAllOpListTaint(state, tid, info->readWriteOps, info->readWriteOpCnt, 0, 0, info->insClass);
-                    return 0;
-                }
-            }
-        }
-
-        combineByteFlagTaint(state->regTaint, state->labelState, tid, info->srcFlags, label);
-        setAllOpListTaint(state, tid, info->readWriteOps, info->readWriteOpCnt, label, 0, info->insClass);
-	taintMem(state, instruction.addr, instruction.binSize, label);// Taint memory region of instruction
-        printf("Adding label %ld to taint mem location %lx in propagate backwards\n", label, instruction.addr);
-        combineAddrCalcListTaint(state, tid, info->readWriteOps, info->readWriteOpCnt, label);
-        combineOpListTaint(state, tid, info->srcOps, info->srcOpCnt, label);
-        combineAddrCalcListTaint(state, tid, info->dstOps, info->dstOpCnt, label);
-
-        return label;
+      if (op1->type == REG_OP && op2->type == REG_OP) {
+	if (op1->reg == op2->reg) {
+	  setAllOpListTaint(state,
+			    tid,
+			    info->readWriteOps,
+			    info->readWriteOpCnt,
+			    0,
+			    0,
+			    info->insClass);
+	  return 0;
+	}
+      }
+      else if (op1->type == MEM_OP && op2->type == MEM_OP) {
+	if (op1->mem.addr == op2->mem.addr && op1->mem.size == op2->mem.size) {
+	  setAllOpListTaint(state,
+			    tid,
+			    info->readWriteOps,
+			    info->readWriteOpCnt,
+			    0,
+			    0,
+			    info->insClass);
+	  return 0;
+	}
+      }
     }
 
-    return 0;
+    combineByteFlagTaint(state->regTaint,
+			 state->labelState,
+			 tid,
+			 info->srcFlags,
+			 label);
+    setAllOpListTaint(state,
+		      tid,
+		      info->readWriteOps,
+		      info->readWriteOpCnt,
+		      label,
+		      0,
+		      info->insClass);
+    // Taint memory region of instruction 
+    taintMem(state, instruction.addr, instruction.binSize, label);  
+    printf("Adding label %ld to taint mem location %lx in propagate backwards\n",
+	   label, instruction.addr);
+    combineAddrCalcListTaint(state,
+			     tid,
+			     info->readWriteOps,
+			     info->readWriteOpCnt,
+			     label);
+    combineOpListTaint(state, tid, info->srcOps, info->srcOpCnt, label);
+    combineAddrCalcListTaint(state, tid, info->dstOps, info->dstOpCnt, label);
+
+    return label;
+  }
+
+  return 0;
 }
