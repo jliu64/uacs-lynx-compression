@@ -1,9 +1,11 @@
 /*
 * File: ShadowRegisters.h
 * Author: David Raicher
-* Description: Provides the shadow register backend for the trace reader.  Allows for a completely arbitrary amount
-* of threads to be represented.  Each thread has a full set of registers as defined in LynxReg.  So the amount and size
-* of registers should dynamically update with LynxReg.  The registers can be read or written at will.
+* Description: Provides the shadow register backend for the trace reader.  
+* Allows for arbitrarily many threads to be represented.  Each thread 
+* has a full set of registers as defined in LynxReg.  So the amount and 
+* size of registers should dynamically update with LynxReg.  The registers 
+* can be read or written at will.
 */
 
 #include "ByteRegTaint.h"
@@ -134,6 +136,12 @@ const uint64_t *getByteRegTaint(ByteRegState *state,
     return state->threads[thread][LynxReg2FullLynxReg(reg)] + LynxRegOffset(reg);
 }
 
+
+/*
+ * getCombinedByteRegTaint() -- given a register reg and taint label initLabel,
+ * returns the taint label obtained by combining initLabel with the taint of
+ * each byte of register reg (in the thread specified).
+ */
 uint64_t getCombinedByteRegTaint(ByteRegState *state,
 				 LabelStoreState *labelState,
 				 LynxReg reg,
@@ -143,9 +151,10 @@ uint64_t getCombinedByteRegTaint(ByteRegState *state,
         return initLabel;
     }
 
-    uint64_t *currentReg = state->threads[thread][LynxReg2FullLynxReg(reg)] + LynxRegOffset(reg);
-    uint8_t sizeInBytes = LynxRegSize(reg);
+    uint64_t *currentReg
+      = state->threads[thread][LynxReg2FullLynxReg(reg)] + LynxRegOffset(reg);
 
+    uint8_t sizeInBytes = LynxRegSize(reg);
     if (reg == LYNX_GFLAGS) {
         sizeInBytes *= 8;
     }

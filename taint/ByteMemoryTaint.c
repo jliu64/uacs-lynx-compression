@@ -310,7 +310,7 @@ static inline QM *copyForWritingSM(ADDRINT addr, SM * srcSM) {
 }
 
 /*
- * copyForWritingSM(ADDRINT addr, TM *srcTM) -- Replaces QM in primary map, 
+ * copyForWritingQM(ADDRINT addr, TM *srcTM) -- Replaces QM in primary map, 
  * and returns created QM.
  */
 
@@ -385,7 +385,7 @@ void isByteMemTainted(ByteMemTaint *state) {
 }
 
 /*
- * chkDefaultVals() -- Checks to ensure the default map values are consistent.
+ * chkByteMemDefaultVals() -- Checks to ensure the default map values are consistent.
  */
 
 void chkByteMemDefaultVals(void) {
@@ -526,9 +526,9 @@ void setAllByteMemTaint(ByteMemTaint *state,
 }
 
 /*
- * store(uint64_t addr, uint32_t sizeInBytes, uint8_t *val) --Stores the series 
- * of bytes (up to sizeInBytes) stored in val into the shadow memory at address
- * addr.  Assumes val is at least sizeInBytes long.
+ * setByteMemTaint(uint64_t addr, uint32_t sizeInBytes, uint8_t *val) --Stores 
+ * the series  of bytes (up to sizeInBytes) stored in val into the shadow memory 
+ * at address addr.  Assumes val is at least sizeInBytes long.
  */
 
 void setByteMemTaint(ByteMemTaint *state,

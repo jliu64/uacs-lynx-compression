@@ -11,7 +11,10 @@
 
 /*
  * initTaint() -- initializes a taint propagation state.  This function should be
- * called at the beginning of any taint analysis.
+ * called at the beginning of any taint analysis.  The code below initializes the
+ * taint propagation functions for byte-level propagation; if a different policy is
+ * needed (e.g., bit-level or word-level), these function pointers should be set 
+ * appropriately.
  */
 TaintState *initTaint(ReaderState *readerState) {
   TaintState *state = malloc(sizeof(TaintState));
@@ -145,7 +148,11 @@ int addTaintToAddrCalcList(TaintState *state,
 
 
 /*
- * taintAddrCalc() -- 
+ * taintAddrCalc() -- adds taint to the address computation of a memory operand.
+ * Given an operand op: if op is a memory operand, this function sets the taint
+ * label for each register used for the address calculation to label, and returns
+ * the value 1; if op is not a memory operand, it leaves taint unchanged and
+ * returns the value 0.
  */
 int taintAddrCalc(TaintState *state, ReaderOp *op, uint32_t tid, uint64_t label) {
     if (op->type != MEM_OP) {
@@ -167,51 +174,90 @@ int taintAddrCalc(TaintState *state, ReaderOp *op, uint32_t tid, uint64_t label)
     return 1;
 }
 
-int taintAddrCalcList(TaintState *state, ReaderOp *ops, int cnt, uint32_t tid, uint64_t label) {
+
+/*
+ * taintAddrCalcList() -- given a set of operands ops, adds taint to all their
+ * address calculations.  Returns 1 if some address calculation register was
+ * affected, 0 otherwise.
+ */
+int taintAddrCalcList(TaintState *state,
+		      ReaderOp *ops,
+		      int cnt,
+		      uint32_t tid,
+		      uint64_t label) {
     int tainted = 0;
 
     int i;
     for(i = 0; i < cnt; i++) {
-        tainted = taintAddrCalc(state, ops, tid, label) || tainted;
+        tainted |= taintAddrCalc(state, ops, tid, label);
         ops = ops->next;
     }
 
     return tainted;
 }
 
-uint64_t getCombinedRegTaint(TaintState *state, LynxReg reg, uint32_t tid, uint64_t label) {
-    return state->getCombinedRegTaint(state->regTaint, state->labelState, reg, tid, label);
+
+/*
+ * getCombinedRegTaint() -- given a register reg and taint label label, returns 
+ * the taint label obtained by combining label with the taint of each byte of
+ * reg in the thread specified by tid.
+ */
+uint64_t getCombinedRegTaint(TaintState *state,
+			     LynxReg reg,
+			     uint32_t tid,
+			     uint64_t label) {
+  return state->getCombinedRegTaint(state->regTaint,
+				    state->labelState,
+				    reg,
+				    tid,
+				    label);
 }
 
-int taintOperand(TaintState *state, ReaderOp *op, uint32_t tid, uint64_t label, InsInfo *info) {
-    if(op->type == REG_OP) {
-        if(op->reg != LYNX_RIP && op->reg != LYNX_RSP && op->reg != LYNX_GFLAGS) {
-            state->setAllRegTaint(state->regTaint, op->reg, tid, label);
-        } else if (op->reg == LYNX_GFLAGS){
-          setByteFlagTaint(state->regTaint, state->labelState, tid, info->dstFlags, label);
-        }
-        return label != 0;
+
+/*
+ * taintOperand() -- apply the taint label label to operand op in thread-id tid:
+ *
+ * If op is a register:
+ *    If op is a register other than RIP or RSP, each byte of the register has its
+ *    taint set to label. If op is RIP or RSP, nothing happens.
+ *
+ * If op is memory: 
+ *    
+ */
+int taintOperand(TaintState *state,
+		 ReaderOp *op,
+		 uint32_t tid,
+		 uint64_t label,
+		 InsInfo *info) {
+  if (op->type == REG_OP) {
+    if (!reg_is_RIP_or_RSP(op->reg) && op->reg != LYNX_GFLAGS) {
+      state->setAllRegTaint(state->regTaint, op->reg, tid, label);
+    }
+    else if (op->reg == LYNX_GFLAGS) {
+      setByteFlagTaint(state->regTaint, state->labelState, tid, info->dstFlags, label);
+    }
+    return label != 0;
+  }  /* if (op->type == REG_OP) */
+
+  if (op->type == MEM_OP) {
+    state->setAllMemTaint(state->memTaint, op->mem.addr, op->mem.size, label);
+
+    if(op->mem.seg != LYNX_INVALID) {
+      state->setAllRegTaint(state->regTaint, op->mem.seg, tid, label);
     }
 
-    if(op->type == MEM_OP) {
-        state->setAllMemTaint(state->memTaint, op->mem.addr, op->mem.size, label);
-
-        if(op->mem.seg != LYNX_INVALID) {
-            state->setAllRegTaint(state->regTaint, op->mem.seg, tid, label);
-        }
-
-        if(op->mem.base != LYNX_INVALID && op->mem.base != LYNX_RIP && op->mem.base != LYNX_RSP) {
-            state->setAllRegTaint(state->regTaint, op->mem.base, tid, label);
-        }
-
-        if(op->mem.index != LYNX_INVALID && op->mem.index != LYNX_RIP && op->mem.index != LYNX_RSP) {
-            state->setAllRegTaint(state->regTaint, op->mem.index, tid, label);
-        }
-
-        return label != 0;
+    if (!reg_is_RIP_or_RSP(op->mem.base)) {
+      state->setAllRegTaint(state->regTaint, op->mem.base, tid, label);
     }
 
-    return 0;
+    if (!reg_is_RIP_or_RSP(op->mem.index)) {
+      state->setAllRegTaint(state->regTaint, op->mem.index, tid, label);
+    }
+
+    return label != 0;
+  }
+
+  return 0;
 }
 
 int taintOperandList(TaintState *state, ReaderOp *ops, int cnt, uint32_t tid, uint64_t label, InsInfo *info) {
