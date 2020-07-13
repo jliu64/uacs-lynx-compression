@@ -9,24 +9,54 @@
 #include "BytePropagation.h"
 #include "TaintState.h"
 
+/*
+ * initTaint() -- initializes a taint propagation state.  This function should be
+ * called at the beginning of any taint analysis.
+ */
 TaintState *initTaint(ReaderState *readerState) {
-    TaintState *state = malloc(sizeof(TaintState));
+  TaintState *state = malloc(sizeof(TaintState));
 
-    state->memTaint = initByteMemTaint();
-    state->freeMemTaint = (void (*) (MemoryTaint)) freeByteMemTaint;
-    state->resetMemLabels = (void (*) (MemoryTaint)) resetByteMemLabels;
-    state->setMemTaint = (void (*) (MemoryTaint, uint64_t, uint32_t, const uint64_t *)) setByteMemTaint;
-    state->setAllMemTaint = (void (*) (MemoryTaint, uint64_t, uint32_t, uint64_t)) setAllByteMemTaint;
-    state->getMemTaint = (void (*) (MemoryTaint, uint64_t, uint32_t, uint64_t *)) getByteMemTaint;
-    state->addTaintToMem = (void (*) (MemoryTaint, LabelStoreState *, uint64_t, uint32_t, uint64_t)) addTaintToByteMem;
+  state->memTaint = initByteMemTaint();
+  state->freeMemTaint = (void (*) (MemoryTaint)) freeByteMemTaint;
+  state->resetMemLabels = (void (*) (MemoryTaint)) resetByteMemLabels;
 
-    state->regTaint = initByteRegTaint(getNumThreads(readerState));
-    state->freeRegTaint = (void (*) (RegisterTaint)) freeByteRegTaint;
-    state->setAllRegTaint = (void (*) (RegisterTaint, LynxReg, uint32_t, uint64_t)) setAllByteRegTaint;
-    state->setRegTaint = (void (*) (RegisterTaint, LynxReg, uint32_t, const uint64_t *)) setByteRegTaint;
-    state->getRegTaint = (const uint64_t *(*) (RegisterTaint, LynxReg, uint32_t)) getByteRegTaint;
-    state->addTaintToReg = (void (*) (RegisterTaint, LabelStoreState *, LynxReg, uint32_t, uint64_t)) addTaintToByteReg;
-    state->getCombinedRegTaint = (uint64_t (*) (RegisterTaint, LabelStoreState *, LynxReg, uint32_t, uint64_t)) getCombinedByteRegTaint;
+  state->setMemTaint =
+    (void (*) (MemoryTaint, uint64_t, uint32_t, const uint64_t *))
+    setByteMemTaint;
+
+  state->setAllMemTaint =
+    (void (*) (MemoryTaint, uint64_t, uint32_t, uint64_t)) setAllByteMemTaint;
+
+  state->getMemTaint =
+    (void (*) (MemoryTaint, uint64_t, uint32_t, uint64_t *)) getByteMemTaint;
+
+  state->addTaintToMem =
+    (void (*) (MemoryTaint, LabelStoreState *, uint64_t, uint32_t, uint64_t))
+    addTaintToByteMem;
+
+  state->regTaint = initByteRegTaint(getNumThreads(readerState));
+
+  state->freeRegTaint = (void (*) (RegisterTaint)) freeByteRegTaint;
+
+  state->setAllRegTaint =
+    (void (*) (RegisterTaint, LynxReg, uint32_t, uint64_t))
+    setAllByteRegTaint;
+
+  state->setRegTaint =
+    (void (*) (RegisterTaint, LynxReg, uint32_t, const uint64_t *))
+    setByteRegTaint;
+
+  state->getRegTaint =
+    (const uint64_t *(*) (RegisterTaint, LynxReg, uint32_t))
+    getByteRegTaint;
+
+  state->addTaintToReg =
+    (void (*) (RegisterTaint, LabelStoreState *, LynxReg, uint32_t, uint64_t))
+    addTaintToByteReg;
+
+  state->getCombinedRegTaint =
+    (uint64_t (*) (RegisterTaint, LabelStoreState *, LynxReg, uint32_t, uint64_t))
+    getCombinedByteRegTaint;
 
     state->labelState = initLabelStore();
 
@@ -37,10 +67,18 @@ TaintState *initTaint(ReaderState *readerState) {
     return state;
 }
 
+
+/*
+ * freeMemTaintLabels() -- resets the state of the shadow memory to be clean.
+ */
 void freeMemTaintLabels(TaintState *state){
     state->resetMemLabels(state->memTaint);
 }
 
+
+/*
+ * freeTaint() -- frees all memory associated with the current taint state.
+ */
 void freeTaint(TaintState *state) {
     state->freeMemTaint(state->memTaint);
     state->freeRegTaint(state->regTaint);
@@ -48,56 +86,81 @@ void freeTaint(TaintState *state) {
     free(state);
 }
 
+
+/*
+ * getNewLabel() -- create and return a new taint label.
+ */
 uint64_t getNewLabel(TaintState *state) {
-    return createNewLabel(state->labelState);
+  return createNewLabel(state->labelState);
 }
 
+
+/*
+ * addTaintToAddrCalc() -- given an operand op and a taint label, if op is a memory
+ * operand it adds the taint specified by label to any register that is used for 
+ * its memory address calculation; in this case it returns the value 1.  If op is
+ * not a memory operand there is no effect, and the value returned is 0.
+ */
 int addTaintToAddrCalc(TaintState *state, ReaderOp *op, uint32_t tid, uint64_t label) {
-    if(op->type != MEM_OP) {
-        return 0;
-    }
+  if (op->type != MEM_OP) {
+    return 0;
+  }
 
-    if(op->mem.seg != LYNX_INVALID) {
-        state->addTaintToReg(state->regTaint, state->labelState, op->mem.seg, tid, label);
-    }
+  if (op->mem.seg != LYNX_INVALID) {
+    state->addTaintToReg(state->regTaint, state->labelState, op->mem.seg, tid, label);
+  }
 
-    if(op->mem.base != LYNX_INVALID && op->mem.base != LYNX_RIP && op->mem.base != LYNX_RSP) {
-        state->addTaintToReg(state->regTaint, state->labelState, op->mem.base, tid, label);
-    }
+  if (!reg_is_RIP_or_RSP(op->mem.base)) {
+    state->addTaintToReg(state->regTaint, state->labelState, op->mem.base, tid, label);
+  }
 
-    if(op->mem.index != LYNX_INVALID && op->mem.index != LYNX_RIP && op->mem.index != LYNX_RSP) {
-        state->addTaintToReg(state->regTaint, state->labelState, op->mem.index, tid, label);
-    }
+  if (!reg_is_RIP_or_RSP(op->mem.index)) {
+    state->addTaintToReg(state->regTaint, state->labelState, op->mem.index, tid, label);
+  }
 
-    return 1;
+  return 1;
 }
 
-int addTaintToAddrCalcList(TaintState *state, ReaderOp *ops, int cnt, uint32_t tid, uint64_t label) {
-    int tainted = 0;
 
-    int i;
-    for(i = 0; i < cnt; i++) {
-        tainted = addTaintToAddrCalc(state, ops, tid, label) || tainted;
-        ops = ops->next;
-    }
+/*
+ * addTaintToAddrCalcList() -- given a set of operands ops and a taint label, adds
+ * the taint label to any register used for an address computation in ops.  The 
+ * return value is 1 if any such register was encountered, 0 otherwise.
+ */
+int addTaintToAddrCalcList(TaintState *state,
+			   ReaderOp *ops,
+			   int cnt,
+			   uint32_t tid,
+			   uint64_t label) {
+  int tainted = 0;
 
-    return tainted;
+  int i;
+  for(i = 0; i < cnt; i++) {
+    tainted |= addTaintToAddrCalc(state, ops, tid, label);
+    ops = ops->next;
+  }
+
+  return tainted;
 }
 
+
+/*
+ * taintAddrCalc() -- 
+ */
 int taintAddrCalc(TaintState *state, ReaderOp *op, uint32_t tid, uint64_t label) {
-    if(op->type != MEM_OP) {
+    if (op->type != MEM_OP) {
         return 0;
     }
 
-    if(op->mem.seg != LYNX_INVALID) {
+    if (op->mem.seg != LYNX_INVALID) {
         state->setAllRegTaint(state->regTaint, op->mem.seg, tid, label);
     }
 
-    if(op->mem.base != LYNX_INVALID && op->mem.base != LYNX_RIP && op->mem.base != LYNX_RSP) {
+    if (!reg_is_RIP_or_RSP(op->mem.base)) {
         state->setAllRegTaint(state->regTaint, op->mem.base, tid, label);
     }
 
-    if(op->mem.index != LYNX_INVALID && op->mem.index != LYNX_RIP && op->mem.index != LYNX_RSP) {
+    if (!reg_is_RIP_or_RSP(op->mem.index)) {
         state->setAllRegTaint(state->regTaint, op->mem.index, tid, label);
     }
 

@@ -221,7 +221,9 @@ void addTaintToByteReg(ByteRegState *state,
 		       LynxReg reg,
 		       uint32_t tid,
 		       uint64_t label) {
-    uint64_t *currentReg = state->threads[tid][LynxReg2FullLynxReg(reg)] + LynxRegOffset(reg);
+    uint64_t *currentReg
+      = state->threads[tid][LynxReg2FullLynxReg(reg)] + LynxRegOffset(reg);
+
     uint8_t sizeInBytes = LynxRegSize(reg);
     
     if(reg == LYNX_GFLAGS) {
@@ -231,8 +233,18 @@ void addTaintToByteReg(ByteRegState *state,
     applyLabel(labelState, label, currentReg, sizeInBytes);
 }
 
-void setAllByteRegTaint(ByteRegState *state, LynxReg reg, uint32_t thread, uint64_t label) {
-    uint64_t *currentReg = state->threads[thread][LynxReg2FullLynxReg(reg)] + LynxRegOffset(reg);
+
+/*
+ * setAllByteRegTaint() -- sets the taint for each byte of register reg, for
+ * the thread specified, to label.
+ */
+void setAllByteRegTaint(ByteRegState *state,
+			LynxReg reg,
+			uint32_t thread,
+			uint64_t label) {
+    uint64_t *currentReg =
+      state->threads[thread][LynxReg2FullLynxReg(reg)] + LynxRegOffset(reg);
+
     uint8_t sizeInBytes = LynxRegSize(reg);
 
     if(reg == LYNX_GFLAGS) {
@@ -246,9 +258,8 @@ void setAllByteRegTaint(ByteRegState *state, LynxReg reg, uint32_t thread, uint6
 }
 
 /*
- * setByteRegTaint() -- Sets the value in the register represented by reg on 
- * the thread represented by thread to the sequence of bytes in val.  Assumes 
- * val is at least the length of the given register.
+ * setByteRegTaint() -- Sets the taint for byte i of register reg, for
+ * the thread specified, to labels[i].  
  */
 void setByteRegTaint(ByteRegState *state,
 		     LynxReg reg,
@@ -256,7 +267,8 @@ void setByteRegTaint(ByteRegState *state,
 		     const uint64_t *labels) {
   uint64_t *cur_reg;
 
-  cur_reg = state->threads[thread][LynxReg2FullLynxReg(reg)] + LynxRegOffset(reg);
+  cur_reg
+    = state->threads[thread][LynxReg2FullLynxReg(reg)] + LynxRegOffset(reg);
   uint8_t sizeInBytes = LynxRegSize(reg);  
     
   if (reg == LYNX_GFLAGS) {
