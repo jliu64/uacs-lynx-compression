@@ -488,6 +488,10 @@ uint8_t *outputCondensedLabels(TaintState *state, uint8_t *labels) {
     return condenseLabels(state->labelState, labels);
 }
 
+/*
+ * outputTaint() -- print out tainted registers and memory locations,
+ * together with their taint labels, in the given taint state.
+ */
 void outputTaint(TaintState *state) {
     outputRegTaint(state->regTaint, state->labelState);
     outputMemTaint(state->memTaint, state->labelState);

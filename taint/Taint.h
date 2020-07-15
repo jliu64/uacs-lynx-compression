@@ -204,6 +204,10 @@ uint8_t *getLabelArray(TaintState *state);
 void getArchLabels(TaintState *state, uint8_t *labels);
 uint8_t *outputCondensedLabels(TaintState *state, uint8_t *labels);
 
+/*
+ * outputTaint() -- print out tainted registers and memory locations,
+ * together with their taint labels, in the given taint state.
+ */
 void outputTaint(TaintState *state);
 
 
