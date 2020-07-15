@@ -439,6 +439,11 @@ uint64_t propagateForward(TaintState *state,
   return state->opHandlers[info->insClass](state, event, info, keepRegInAddrCalc);
 }
 
+
+/*
+ * propagateBackward() -- propagate taint backward through an instruction 
+ * indicated by info and thread tid.
+ */
 uint64_t propagateBackward(TaintState *state, uint32_t tid, InsInfo *info) {
   return backwardBytePropagation(state, tid, info);
 }
