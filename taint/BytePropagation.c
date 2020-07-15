@@ -797,6 +797,13 @@ uint64_t backwardBytePropagation(TaintState *state, uint32_t tid, InsInfo *info)
   return 0;
 }
 
+
+/*
+ * backwardBytePropagationWithIns() -- propagate taint backwards similarly
+ * to backwardBytePropagation(), but additionally taint the bytes occupied
+ * by instruction.  The tainting of instruction bytes aims to deal with 
+ * self-modifying code.
+ */
 uint64_t backwardBytePropagationWithIns(TaintState *state,
 					uint32_t tid,
 					InsInfo *info,

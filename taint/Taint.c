@@ -272,7 +272,7 @@ int taintOperand(TaintState *state,
 
 /*
  * taintOperandList() -- apply the taint label label to the set of operands ops 
- * in thread-id tid:
+ * in thread-id tid.
  */
 int taintOperandList(TaintState *state,
 		     ReaderOp *ops,
@@ -293,7 +293,10 @@ int taintOperandList(TaintState *state,
 
 
 /*
- * taintIns() -- 
+ * taintIns() -- propagates taint originating from a particular instruction. 
+ * To do so it  taints all of the instruction writes (i.e., the read-write 
+ * operands and  the destination operands) together with the instruction bytes. 
+ * The instruction bytes are also tainted so as to handle self-modifying code.
  */
 int taintIns(TaintState *state, ReaderEvent *event, InsInfo *info, uint64_t label) {
     int tainted = taintOperandList(state,
@@ -443,7 +446,9 @@ uint64_t propagateBackward(TaintState *state, uint32_t tid, InsInfo *info) {
 
 /*
  * propagateBackwardWithIns() -- propagate taint backward through instruction
- * with corresponding InsInfo info.
+ * with corresponding InsInfo info (similarly to propagateBackward), and
+ * additionally taint the bytes occupied by instruction.  Tainting of the
+ * instruction bytes aims to deal with self-modifying code.
  */
 uint64_t propagateBackwardWithIns(TaintState *state,
 				  uint32_t tid,

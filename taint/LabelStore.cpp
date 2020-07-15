@@ -174,6 +174,11 @@ uint64_t combineAllLabels(LabelStoreState *state, uint64_t init, uint64_t *label
     return combined;
 }
 
+
+/*
+ * applyLabel() -- write the taint specified by apply to size positions of the taint
+ * array labels.
+ */
 void applyLabel(LabelStoreState *state, uint64_t apply, uint64_t *labels, int size) {
     uint64_t prevLabel = 0;
     uint64_t prevCombination = apply;
@@ -193,6 +198,16 @@ void applyLabel(LabelStoreState *state, uint64_t apply, uint64_t *labels, int si
     }
 }
 
+
+/*
+ * applyAndCombineLabels() -- combines the taint label apply with the label at 
+ * each index of the array labels, then writes the resulting taint label to
+ * that index.  In the resulting taint array each index in the array will still
+ * be "marked" with its original label and the specified taint label.  It is
+ * essentially equivalent to iterating over each index in the array, combining 
+ * the desired label with the label at the current index, then applying that 
+ * label to that index.
+ */
 uint64_t applyAndCombineLabels(LabelStoreState *state, uint64_t apply, uint64_t *labels, int size) {
     uint64_t prevLabel = 0;
     uint64_t prevCombination = apply;
