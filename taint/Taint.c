@@ -217,11 +217,15 @@ uint64_t getCombinedRegTaint(TaintState *state,
 /*
  * taintOperand() -- apply the taint label label to operand op in thread-id tid:
  *
- * If op is a register:
- *    If op is a register other than RIP or RSP, each byte of the register has its
- *    taint set to label. If op is RIP or RSP, nothing happens.
+ * If op is a register reg:
+ *    If reg is other than RIP or RSP, each byte of reg has its taint set to label. 
+ *    If reg is RIP or RSP, nothing happens.
  *
  * If op is memory: 
+ *    The memory bytes addressed by op are tainted, and any registers involved in
+ *    the address computation are also tainted.
+ *
+ * The return value in either case is whether the taint label is nonzero.
  *    
  */
 int taintOperand(TaintState *state,
@@ -240,8 +244,13 @@ int taintOperand(TaintState *state,
   }  /* if (op->type == REG_OP) */
 
   if (op->type == MEM_OP) {
+    /* 
+     * add taint to the memory locations addressed by the operand
+     */
     state->setAllMemTaint(state->memTaint, op->mem.addr, op->mem.size, label);
-
+    /*
+     * add taint to registers used for computing 
+     */
     if(op->mem.seg != LYNX_INVALID) {
       state->setAllRegTaint(state->regTaint, op->mem.seg, tid, label);
     }
@@ -255,109 +264,192 @@ int taintOperand(TaintState *state,
     }
 
     return label != 0;
-  }
+  }  /* if (op->type == MEM_OP) */
 
   return 0;
 }
 
-int taintOperandList(TaintState *state, ReaderOp *ops, int cnt, uint32_t tid, uint64_t label, InsInfo *info) {
+
+/*
+ * taintOperandList() -- apply the taint label label to the set of operands ops 
+ * in thread-id tid:
+ */
+int taintOperandList(TaintState *state,
+		     ReaderOp *ops,
+		     int cnt,
+		     uint32_t tid,
+		     uint64_t label,
+		     InsInfo *info) {
     int tainted = 0;
 
     int i;
     for(i = 0; i < cnt; i++) {
-        tainted = taintOperand(state, ops, tid, label, info) || tainted;
+        tainted |= taintOperand(state, ops, tid, label, info);
         ops = ops->next;
     }
 
     return tainted;
 }
 
+
+/*
+ * taintIns() -- 
+ */
 int taintIns(TaintState *state, ReaderEvent *event, InsInfo *info, uint64_t label) {
-    int tainted = taintOperandList(state, info->readWriteOps, info->readWriteOpCnt, event->ins.tid, label, info);
+    int tainted = taintOperandList(state,
+				   info->readWriteOps,
+				   info->readWriteOpCnt,
+				   event->ins.tid,
+				   label,
+				   info);
     taintMem(state, event->ins.addr, event->ins.binSize, label);
-    tainted = taintOperandList(state, info->dstOps, info->dstOpCnt, event->ins.tid, label, info) || tainted;
+    tainted |= taintOperandList(state,
+			       info->dstOps,
+			       info->dstOpCnt,
+			       event->ins.tid,
+			       label,
+			       info);
 
     return tainted;
 }
 
+
+/*
+ * taintReg() -- set the taint of register reg in the thread specified to label.
+ */
 int taintReg(TaintState *state, LynxReg reg, uint32_t thread, uint64_t label) {
     state->setAllRegTaint(state->regTaint, reg, thread, label);
     return label != 0;
 }
 
+
+/*
+ * taintMem() -- set the taint of size bytes of memory, starting at address addr,
+ * to label.
+ */
 int taintMem(TaintState *state, uint64_t addr, uint32_t size, uint64_t label) {
     state->setAllMemTaint(state->memTaint, addr, size, label);
     return label != 0;
 }
 
+
+/*
+ * taintMemBlock() -- set the taint of size bytes of memory, starting at address
+ * addr, to be the array of taint labels given by labels.
+ */
 int taintMemBlock(TaintState *state, uint64_t addr, uint32_t size, uint64_t *labels) {
     state->setMemTaint(state->memTaint, addr, size, labels);
     return 1;
 }
 
 
+/*
+ * addTaintToOperand() -- Add the taint in label to operand op:
+ *
+ *    -- if op is a register reg other than RIP or RSP, add taint to the reg.
+ *    -- if op is a memory operand, taint the memory locations it addresses
+ *              as well as any registers used in the address computation.
+ */
 int addTaintToOperand(TaintState *state, ReaderOp *op, uint32_t tid, uint64_t label) {
-    if(op->type == REG_OP) {
-        if(op->reg != LYNX_RIP && op->reg != LYNX_RSP && op->reg != LYNX_GFLAGS) {
-            state->addTaintToReg(state->regTaint, state->labelState, op->reg, tid, label);
-        }
-        return 1;
+  if (op->type == REG_OP) {
+    if (!reg_is_RIP_or_RSP(op->reg) && op->reg != LYNX_GFLAGS) {
+      state->addTaintToReg(state->regTaint, state->labelState, op->reg, tid, label);
+    }
+    return 1;
+  }
+
+  if (op->type == MEM_OP) {
+    state->addTaintToMem(state->memTaint,
+			 state->labelState,
+			 op->mem.addr,
+			 op->mem.size,
+			 label);
+
+    if (op->mem.seg != LYNX_INVALID) {
+      state->addTaintToReg(state->regTaint, state->labelState, op->mem.seg, tid, label);
     }
 
-    if(op->type == MEM_OP) {
-        state->addTaintToMem(state->memTaint, state->labelState, op->mem.addr, op->mem.size, label);
-
-        if(op->mem.seg != LYNX_INVALID) {
-            state->addTaintToReg(state->regTaint, state->labelState, op->mem.seg, tid, label);
-        }
-
-        if(op->mem.base != LYNX_INVALID && op->mem.base != LYNX_RIP && op->mem.base != LYNX_RSP) {
-            state->addTaintToReg(state->regTaint, state->labelState, op->mem.base, tid, label);
-        }
-
-        if(op->mem.index != LYNX_INVALID && op->mem.index != LYNX_RIP && op->mem.index != LYNX_RSP) {
-            state->addTaintToReg(state->regTaint, state->labelState, op->mem.index, tid, label);
-        }
-
-        return 1;
+    if (!reg_is_RIP_or_RSP(op->mem.base)) {
+      state->addTaintToReg(state->regTaint, state->labelState, op->mem.base, tid, label);
     }
 
-    return 0;
+    if (!reg_is_RIP_or_RSP(op->mem.index)) {
+      state->addTaintToReg(state->regTaint, state->labelState, op->mem.index, tid, label);
+    }
+
+    return 1;
+  }
+
+  return 0;
 }
 
-int addTaintToOperandList(TaintState *state, ReaderOp *ops, int cnt, uint32_t tid, uint64_t label) {
+
+/*
+ * addTaintToOperandList() -- Add the taint in label to a set of operands ops.
+ */
+int addTaintToOperandList(TaintState *state,
+			  ReaderOp *ops,
+			  int cnt,
+			  uint32_t tid,
+			  uint64_t label) {
     int tainted = 0;
 
     int i;
     for(i = 0; i < cnt; i++) {
-        tainted = addTaintToOperand(state, ops, tid, label) || tainted;
+      tainted |= addTaintToOperand(state, ops, tid, label);
         ops = ops->next;
     }
 
     return tainted;
 }
 
+
+/*
+ * addTaintToMem() -- adds the taint in label to the per-byte taint in a memory
+ * region of size bytes starting at address addr.
+ */
 int addTaintToMem(TaintState *state, uint64_t addr, uint32_t size, uint64_t label) {
     state->addTaintToMem(state->memTaint, state->labelState, addr, size, label);
 
     return 1;
 }
 
+
+/*
+ * addTaintToReg() -- add the taint in label to that of register reg in thread tid.
+ */
 int addTaintToReg(TaintState *state, LynxReg reg, uint32_t tid, uint64_t label) {
-    state->addTaintToReg(state->regTaint, state->labelState, reg, tid, label);
-    return 1;
+  state->addTaintToReg(state->regTaint, state->labelState, reg, tid, label);
+  return 1;
 }
 
-uint64_t propagateForward(TaintState *state, ReaderEvent *event, InsInfo *info, uint8_t keepRegInAddrCalc) {
-    return state->opHandlers[info->insClass](state, event, info, keepRegInAddrCalc);
+
+/*
+ * propagateForward() -- propagate taint forward through a reader event (i.e.,
+ * instruction), with corresponding InsInfo structure info (see documentation
+ * on the trace reader for more about ReaderEvent and InsInfo structures).
+ */
+uint64_t propagateForward(TaintState *state,
+			  ReaderEvent *event,
+			  InsInfo *info,
+			  uint8_t keepRegInAddrCalc) {
+  return state->opHandlers[info->insClass](state, event, info, keepRegInAddrCalc);
 }
 
 uint64_t propagateBackward(TaintState *state, uint32_t tid, InsInfo *info) {
-    return backwardBytePropagation(state, tid, info);
+  return backwardBytePropagation(state, tid, info);
 }
 
-uint64_t propagateBackwardWithIns(TaintState *state, uint32_t tid, InsInfo *info, ReaderIns instruction) {
-    return backwardBytePropagationWithIns(state, tid, info, instruction);
+
+/*
+ * propagateBackwardWithIns() -- propagate taint backward through instruction
+ * with corresponding InsInfo info.
+ */
+uint64_t propagateBackwardWithIns(TaintState *state,
+				  uint32_t tid,
+				  InsInfo *info,
+				  ReaderIns instruction) {
+  return backwardBytePropagationWithIns(state, tid, info, instruction);
 }
 
 void recoverSpace(TaintState *state, uint8_t *alive) {

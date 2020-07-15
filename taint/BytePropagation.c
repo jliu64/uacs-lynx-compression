@@ -66,10 +66,11 @@ uint8_t canSkipTaintBecauseInsType(xed_iclass_enum_t inst){
 }
 
 /*
- * reg_is_RIP_or_RSP() -- returns 1 if the argument is RIP or RSP; 0 o/w.
+ * reg_is_RIP_or_RSP() -- returns 1 if the argument is either not a register
+ * (LYNX_INVALID) or is either RIP or RSP; 0 o/w.
  */
 uint8_t reg_is_RIP_or_RSP(LynxReg reg) {
-  return (reg == LYNX_RIP || reg == LYNX_RSP);
+  return (reg == LYNX_INVALID || reg == LYNX_RIP || reg == LYNX_RSP);
 }
 
 /*

@@ -215,8 +215,6 @@ uint64_t applyAndCombineLabels(LabelStoreState *state, uint64_t apply, uint64_t 
                 }
                 prevCombination = labels[i];
             }
-            //tainted = tainted || (labels[i] != combinedLabel);
-            //labels[i] = combinedLabel;
         }
     }
 

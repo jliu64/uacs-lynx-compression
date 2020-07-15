@@ -108,7 +108,6 @@ void collectMemLabels(ByteMemTaint *state, uint8_t *labels) {
  * freeShadowMemory should also be called before any subsequent calls to this 
  * function to prevent memory leakage.
 */
-
 ByteMemTaint *initByteMemTaint() {
     ByteMemTaint *state = malloc(sizeof(ByteMemTaint));
     if (state == NULL) {
@@ -161,11 +160,11 @@ static inline bool is_DQM(QM * curQM) {
     return DQM == curQM;
 }
 
+
 /*
  * resetByteMemTaint() -- Resets the state of the shadow memory to be 
  * completely clean, i.e., just like after a call to initByteMemTaint().
 */
-
 void resetByteMemTaint(ByteMemTaint *state) {
     uint32_t i, j, k;
     for (i = 0; i < LVL_SIZE; i++) {
@@ -200,10 +199,10 @@ static inline void freeGlobalState() {
     free(DQM);
 }
 
+
 /*
 * freeShadowMemory() -- Frees all memory allocated by the Shadow Memory.
 */
-
 void resetByteMemLabels(ByteMemTaint *state){
     resetByteMemTaint(state);
 }
@@ -241,11 +240,11 @@ static inline QM **getQMPtr(ADDRINT addr, TM curTM) {
     return &curTM[(addr >> TM_SHAMT) & ADDR_MASK];
 }
 
+
 /*
  * copyForWritingTM(ADDRINT addr, TM *srcTM) -- Replaces TM in primary map, 
  * and returns the created QM.
  */
-
 static inline QM *copyForWritingTM(ADDRINT addr, TM * srcTM) {
     TM newTM = malloc(sizeof (QM *[LVL_SIZE]));
 
@@ -270,11 +269,11 @@ static inline QM *copyForWritingTM(ADDRINT addr, TM * srcTM) {
     return newQM;
 }
 
+
 /*
  * copyForWritingSM(ADDRINT addr, TM *srcTM) -- Replaces SM in primary map, 
  * and returns the created QM.
  */
-
 static inline QM *copyForWritingSM(ADDRINT addr, SM * srcSM) {
     SM newSM = malloc(sizeof (QM **[LVL_SIZE]));
 
@@ -309,11 +308,11 @@ static inline QM *copyForWritingSM(ADDRINT addr, SM * srcSM) {
     return newQM;
 }
 
+
 /*
  * copyForWritingQM(ADDRINT addr, TM *srcTM) -- Replaces QM in primary map, 
  * and returns created QM.
  */
-
 static inline QM *copyForWritingQM(ADDRINT addr, QM ** srcQM) {
     QM *newQM = malloc(sizeof (QM));
 
@@ -328,11 +327,11 @@ static inline QM *copyForWritingQM(ADDRINT addr, QM ** srcQM) {
     return newQM;
 }
 
+
 /*
  * getQMForReading(ADDRINT addr) -- Returns the QM at the specified address 
  * for reading.
  */
-
 static inline QM *getQMForReading(ByteMemTaint *state, ADDRINT addr) {
   uint64_t idx1 = addr >> PM_SHAMT;                /* primary */
   uint64_t idx2 = (addr >> SM_SHAMT) & ADDR_MASK;  /* secondary */
@@ -341,10 +340,10 @@ static inline QM *getQMForReading(ByteMemTaint *state, ADDRINT addr) {
   return state->PM[idx1][idx2][idx3];
 }
 
+
 /*
  * getQMForWriting(ADDRINT addr) -- Returns the QM for the specified address.
  */
-
 static inline QM *getQMForWriting(ByteMemTaint *state, ADDRINT addr) {
     SM *curSM = getSMPtr(state, addr);
     if (is_DSM(*curSM)) {
@@ -364,11 +363,11 @@ static inline QM *getQMForWriting(ByteMemTaint *state, ADDRINT addr) {
     return *curQM;
 }
 
+
 /*
  * isByteMemTainted() -- Checks to see which chunks of memory have been 
  * allocated (and hence are no longer the default map values).
  */
-
 void isByteMemTainted(ByteMemTaint *state) {
     uint32_t i;
     for (i = 0; i < LVL_SIZE; i++) {
@@ -384,10 +383,10 @@ void isByteMemTainted(ByteMemTaint *state) {
     }
 }
 
+
 /*
  * chkByteMemDefaultVals() -- Checks to ensure the default map values are consistent.
  */
-
 void chkByteMemDefaultVals(void) {
     uint32_t i;
     for (i = 0; i < LVL_SIZE; i++) {
@@ -405,15 +404,16 @@ void chkByteMemDefaultVals(void) {
     }
 }
 
+
 /*
  * isNotAligned(ADDRINT addr, uint32_t alignment) -- Checks to see if the size 
  * of a given read/write is aligned with the QM size.  Easy check to see if a
  * write/read may be split between seperate QMs.
  */
-
 static inline bool isNotAligned(ADDRINT addr, uint32_t alignment) {
     return addr & (alignment - 1);
 }
+
 
 /*
  * hasSpace(ADDRINT addr, unit32_t sizeInBytes) -- Determines if there is space 
@@ -421,16 +421,15 @@ static inline bool isNotAligned(ADDRINT addr, uint32_t alignment) {
  * there isn't a write off the side of the array. Returns 0 if there is not space,
  * 1 otherwise.
  */
-
 static inline bool hasSpace(ADDRINT addr, uint32_t sizeInBytes) {
     return ((addr & ADDR_MASK) + sizeInBytes) < ADDR_MASK;
 }
+
 
 /*
  * store8(ADDRINT addr, uint8_t newVal) -- Stores newVal (a byte) at the given 
  * address.
  */
-
 static inline void store8(ByteMemTaint *state,
 			  ADDRINT addr,
 			  const uint64_t *label) {
@@ -439,12 +438,12 @@ static inline void store8(ByteMemTaint *state,
     curQM->label[i] = *label;
 }
 
+
 /*
  * storeSlow(ADDRINT addr, uint8_t *val, uint32_t sizeInBytes) -- Stores the 
  * bytes in the buffer val starting at addr one by one.  Obviously the slowest
  * way to store large values.  Assume val is at least sizeInBytes long.
  */
-
 static inline void storeSlow(ByteMemTaint *state,
 			     ADDRINT addr,
 			     const uint64_t *labels,
@@ -455,12 +454,12 @@ static inline void storeSlow(ByteMemTaint *state,
     }
 }
 
+
 /*
  * store16/store32/store64(ADDRINT, addr, uint8_t *val) -- Quickly stores 2/4/8 
  * bytes from val into shadow memory starting at address addr.  Assumes that
  * val is long enough for the write.
  */
-
 static inline void store16(ByteMemTaint *state,
 			   ADDRINT addr,
 			   const uint64_t *labels) {
@@ -525,12 +524,12 @@ void setAllByteMemTaint(ByteMemTaint *state,
     }
 }
 
+
 /*
  * setByteMemTaint(uint64_t addr, uint32_t sizeInBytes, uint8_t *val) --Stores 
  * the series  of bytes (up to sizeInBytes) stored in val into the shadow memory 
  * at address addr.  Assumes val is at least sizeInBytes long.
  */
-
 void setByteMemTaint(ByteMemTaint *state,
 		     ADDRINT addr,
 		     uint32_t sizeInBytes,
@@ -576,21 +575,21 @@ void setByteMemTaint(ByteMemTaint *state,
     }
 }
 
+
 /*
  * load8(ADDRINT addr) -- Returns the value currently stored at addr (1 byte).
  */
-
 static inline void load8(ByteMemTaint *state, ADDRINT addr, uint64_t *buffer) {
     QM *curQM = getQMForReading(state, addr);
     *buffer = curQM->label[addr & ADDR_MASK];
 }
+
 
 /*
  * loadSlow(ADDRINT addr, uint32_t sizeInBytes, uint8_t *buffer) -- Loads 
  * sizeInBytes bytes into buffer starting at addr.  This is done bytewise and
  * hence is the slowest possible way.  Assumes buffer is >= sizeInBytes long.
  */
-
 static inline void loadSlow(ByteMemTaint *state,
 			    ADDRINT addr,
 			    uint32_t sizeInBytes,
@@ -601,12 +600,12 @@ static inline void loadSlow(ByteMemTaint *state,
     }
 }
 
+
 /*
  * load16/load32/load64(ADDRINT, addr, uint8_t *buffer) -- Quickly loads 
  * 2/4/8 bytes from shadow memory into buffer starting at address addr.  
  * Assumes buffer is sizeInBytes long.
-*/
-
+ */
 static inline void load16(ByteMemTaint *state,
 			  ADDRINT addr,
 			  uint64_t * buffer) {
@@ -655,12 +654,12 @@ static inline void load64(ByteMemTaint *state,
     buffer[7] = curQM->label[i];
 }
 
+
 /* 
  * getByteMemTaint(uint64_t addr, uint32_t size, uint8_t *buf) -- 
  * Retrieves size bytes from the address at addr in shadow memory and stores 
  * them into the buffer at buf.  Assumes buf is at least size long.
  */
-
 void getByteMemTaint(ByteMemTaint *state,
 		     ADDRINT addr,
 		     uint32_t sizeInBytes,
@@ -706,11 +705,11 @@ void getByteMemTaint(ByteMemTaint *state,
     }
 }
 
+
 /*
  * add8(state, labelState, addr, label) -- adds label to the taint label
  * to the taint label at the byte at location addr.
  */
-
 static inline void add8(ByteMemTaint *state,
 			LabelStoreState *labelState,
 			ADDRINT addr,
@@ -725,8 +724,7 @@ static inline void add8(ByteMemTaint *state,
  * addSlow(state, labelState, addr, label, sizeInBytes) -- adds label to
  * the taint for sizeInBytes locations, starting at location addr, one
  * byte at a time.  The slowest way to store large values.  
-*/
-
+ */
 static inline void addSlow(ByteMemTaint *state,
 			   LabelStoreState *labelState,
 			   ADDRINT addr,
@@ -737,6 +735,7 @@ static inline void addSlow(ByteMemTaint *state,
         add8(state, labelState, addr + i, label);
     }
 }
+
 
 /*
  * add16/add32/add64(ADDRINT, addr, uint8_t *val) -- Quickly adds label to
@@ -788,8 +787,7 @@ static inline void add64(ByteMemTaint *state,
  * addTaintToByteMem(uint64_t addr, uint32_t sizeInBytes, uint8_t *val) --
  * Adds label to the taint label for sizeInBytes locations starting at
  * address addr. 
-*/
-
+ */
 void addTaintToByteMem(ByteMemTaint *state,
 		       LabelStoreState *labelState,
 		       ADDRINT addr,
@@ -838,7 +836,6 @@ void addTaintToByteMem(ByteMemTaint *state,
  * combine8() -- returns the taint label obtained by combining curLabel 
  * with the taint label at the byte at location addr.
  */
-
 static inline uint64_t combine8(ByteMemTaint *state,
 				LabelStoreState *labelState,
 				ADDRINT addr,
@@ -852,7 +849,6 @@ static inline uint64_t combine8(ByteMemTaint *state,
  * combineSlow() -- returns the taint label obtained by combining curLabel
  * with the taint labels for sizeInBytes bytes starting at addr.
  */
-
 static inline uint64_t combineSlow(ByteMemTaint *state,
 				   LabelStoreState *labelState,
 				   ADDRINT addr,
@@ -866,11 +862,11 @@ static inline uint64_t combineSlow(ByteMemTaint *state,
     return curLabel;
 }
 
+
 /*
  * combine16/combine32/combine64() -- Quickly combines the taint label curLabel
  * with the taint labels for 2/4/8 bytes at address addr.
  */
-
 static inline uint64_t combine16(ByteMemTaint *state,
 				 LabelStoreState *labelState,
 				 ADDRINT addr,
