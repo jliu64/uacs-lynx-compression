@@ -28,8 +28,8 @@ Let `TOOLDIR` be the path to the directory containing the `reader` directory (i.
   ```
 
 - **Dynamic loader search path:** Set the variable `LD_LIBRARY_PATH` as follows:
-- `LD_LIBRARY_PATH` should include the directory `XEDPATH/obj`;
-- if the reader is built as a dynamically linked library, i.e., as a `*.so` file, then `LD_LIBRARY_PATH` should also include the directory `TOOLDIR/reader` (the default build process for the reader builds it as a statically shared library, i.e., as a `*.a` file, and it is not necessary to have the path to the reader in `LD_LIBRARY_PATH`);
+    - `LD_LIBRARY_PATH` should include the directory `XEDPATH/obj`;
+    - if the reader is built as a dynamically linked library, i.e., as a `*.so` file, then `LD_LIBRARY_PATH` should also include the directory `TOOLDIR/reader` (the default build process for the reader builds it as a statically shared library, i.e., as a `*.a` file, and it is not necessary to have the path to the reader in `LD_LIBRARY_PATH`).
 
 Given the above, a makefile for a client application that uses the trace reader might look something like the following:
 
