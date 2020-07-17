@@ -36,8 +36,8 @@ Let `TOOLDIR` be the path to the directory containing the `taint` directory (i.e
 Given the above, a makefile for a client application that uses the taint library might look something like the following:
 
 ```
-TOOLDIR = .....
-XEDPATH = .....
+TOOLDIR = .....        # set appropriately
+XEDPATH = .....        # set appropriately
 
 INCLUDES = -I$(TOOLDIR)/reader \
 	-I$(TOOLDIR)/taint \
@@ -60,4 +60,19 @@ $(TARGET) : $(OFILES)
 	$(CC) $(CFLAGS) $(OFILES) -o $(TARGET) $(LDFLAGS) $(LIBS)
 
 ```
+
+## Processing an execution trace
+To propagate taint through an instruction trace, we have to repeatedly read in execution events (i.e., instructions) from the trace and then propagate trace through each event read in.  Details on how to do this are given in the tutorial on the trace reader (`reader/HOW-TO-USE.md`).  This document describes the additional steps needed for taint propagation.
+
+### Taint state initialization
+Taint state should be initialized before processing a trace:
+
+``` C
+#include <Taint.h>
+...
+ReaderState r_state = initReader(trace_file, 0);
+...
+TaintState *t_state = initTaint(r_state);
+```
+Among other things, this registers a set of handler functions that implement the *taint policy*, i.e., the logic by which the taint analysis determines which locations to taint at which point.  The `initTaint()` function mentioned above uses a set of handlers that implement byte-level taint tracking; if a different taint policy is desired, the user can either write a different initialization function, or else redefine selected handler functions.
 
