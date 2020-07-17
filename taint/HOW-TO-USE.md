@@ -70,7 +70,7 @@ Taint state should be initialized before processing a trace:
 ``` C
 #include <Taint.h>
 ...
-ReaderState r_state = initReader(trace_file, 0);
+ReaderState *r_state = initReader(trace_file, 0);
 ...
 TaintState *t_state = initTaint(r_state);
 ```
