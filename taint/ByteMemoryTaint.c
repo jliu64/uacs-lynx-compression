@@ -109,24 +109,24 @@ void collectMemLabels(ByteMemTaint *state, uint8_t *labels) {
  * function to prevent memory leakage.
 */
 ByteMemTaint *initByteMemTaint() {
-    ByteMemTaint *state = malloc(sizeof(ByteMemTaint));
+  ByteMemTaint *state = calloc(1, sizeof(ByteMemTaint));
     if (state == NULL) {
         throwError("Could not allocate space for memory state");
     }
 
     char init = 0;
     if (DSM == NULL) {
-        DSM = malloc(sizeof (QM **[LVL_SIZE]));
+      DSM = calloc(1, sizeof (QM **[LVL_SIZE]));
         init = 1;
     }
 
     if (DTM == NULL) {
-        DTM = malloc(sizeof (QM *[LVL_SIZE]));
+      DTM = calloc(1, sizeof (QM *[LVL_SIZE]));
         init = 1;
     }
 
     if (DQM == NULL) {
-        DQM = malloc(sizeof (QM));
+      DQM = calloc(1, sizeof (QM));
         init = 1;
     }
 
@@ -246,7 +246,7 @@ static inline QM **getQMPtr(ADDRINT addr, TM curTM) {
  * and returns the created QM.
  */
 static inline QM *copyForWritingTM(ADDRINT addr, TM * srcTM) {
-    TM newTM = malloc(sizeof (QM *[LVL_SIZE]));
+  TM newTM = calloc(1, sizeof (QM *[LVL_SIZE]));
 
     if (newTM == NULL) {
         throwError("Unable to allocate space for new TM");
@@ -254,7 +254,7 @@ static inline QM *copyForWritingTM(ADDRINT addr, TM * srcTM) {
 
     memcpy(newTM, *srcTM, sizeof (QM *[LVL_SIZE]));
 
-    QM *newQM = malloc(sizeof (QM));
+    QM *newQM = calloc(1, sizeof (QM));
 
     if (newQM == NULL) {
         throwError("Unable to allocate space for new QM");
@@ -275,7 +275,7 @@ static inline QM *copyForWritingTM(ADDRINT addr, TM * srcTM) {
  * and returns the created QM.
  */
 static inline QM *copyForWritingSM(ADDRINT addr, SM * srcSM) {
-    SM newSM = malloc(sizeof (QM **[LVL_SIZE]));
+  SM newSM = calloc(1, sizeof (QM **[LVL_SIZE]));
 
     if (newSM == NULL) {
         throwError("Unable to allocate space for new SM");
@@ -283,7 +283,7 @@ static inline QM *copyForWritingSM(ADDRINT addr, SM * srcSM) {
 
     memcpy(newSM, *srcSM, sizeof (QM **[LVL_SIZE]));
 
-    TM newTM = malloc(sizeof (QM *[LVL_SIZE]));
+    TM newTM = calloc(1, sizeof (QM *[LVL_SIZE]));
 
     if (newTM == NULL) {
         throwError("Unable to allocate space for new TM");
@@ -292,7 +292,7 @@ static inline QM *copyForWritingSM(ADDRINT addr, SM * srcSM) {
     TM *curTM = getTMPtr(addr, newSM);
     memcpy(newTM, *curTM, sizeof (QM *[LVL_SIZE]));
 
-    QM *newQM = malloc(sizeof (QM));
+    QM *newQM = calloc(1, sizeof (QM));
 
     if (newQM == NULL) {
         throwError("Unable to allocate space for new QM");
@@ -314,7 +314,7 @@ static inline QM *copyForWritingSM(ADDRINT addr, SM * srcSM) {
  * and returns created QM.
  */
 static inline QM *copyForWritingQM(ADDRINT addr, QM ** srcQM) {
-    QM *newQM = malloc(sizeof (QM));
+  QM *newQM = calloc(1, sizeof (QM));
 
     if (newQM == NULL) {
         throwError("Unable to allocate space for new QM");
