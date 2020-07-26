@@ -69,3 +69,13 @@ uint64_t get_unsigned(char *str) {
 
   return val;
 }
+
+/*
+ * swap: swap the two values pointed at
+ */
+void swap(uint64_t *val1, uint64_t *val2) {
+  uint64_t tmp;
+  tmp = *val1;
+  *val1 = *val2;
+  *val2 = tmp;
+}

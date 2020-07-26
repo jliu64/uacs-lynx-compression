@@ -23,7 +23,7 @@
 typedef struct taint_loc {
   uint64_t ins_num;  
   uint64_t start;
-  int sz;
+  uint64_t sz;
   struct taint_loc *next;
 } Taint_Loc;
 

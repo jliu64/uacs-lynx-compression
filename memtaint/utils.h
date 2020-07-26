@@ -26,4 +26,9 @@ void *alloc(int n);
  */
 uint64_t get_unsigned(char *str);
 
+/*
+ * swap: swap the two values pointed at
+ */
+void swap(uint64_t *val1, uint64_t *val2);
+
 #endif  /* __UTILS_H_ */
