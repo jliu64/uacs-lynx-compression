@@ -5,6 +5,13 @@ The tools in this repository support analysis of application-level instruction e
 
 The core components of the toolset are a *trace writer* and a *trace reader*.  Other analyses are built using these components.  Documentation for each of these tools is available in the directory containing the code for the tool.
 
+## Building the tools
+1) Download Intel's [XED](https://intelxed.github.io/) disassembler and set the environment variable `XED_ROOT` to point to the directory containing xed.
+2) Download Intel's [Pin](https://software.intel.com/content/www/us/en/develop/articles/pin-a-dynamic-binary-instrumentation-tool.html) dynamic instrumentation system and set the environment variable `PIN_ROOT` to point to the directory containing Pin.
+3) Execute the command
+
+   `make`
+
 ## Core components
 
 ### Trace writer

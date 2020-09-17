@@ -1,16 +1,18 @@
 DEST = slicer
 
+# This make file assumes that the environment variable XED_ROOT points to the
+# root of the directory tree containing the xed disassembler
+
 TOOLDIR = ../
-XEDPATH = ../../xed
 
 CXX = g++
 
 INCLUDES = -I$(TOOLDIR)/reader \
 	-I$(TOOLDIR)/shared \
-	-I$(XEDPATH)/include/public/xed \
-	-I$(XEDPATH)/obj -I$(TOOLDIR)/cfg \
+	-I$(XED_ROOT)/include/public/xed \
+	-I$(XED_ROOT)/obj -I$(TOOLDIR)/cfg \
 	-I$(TOOLDIR)/taint
-LDFLAGS = -L$(TOOLDIR)/reader -L$(XEDPATH)/obj -L$(TOOLDIR)/cfg -L$(TOOLDIR)/taint
+LDFLAGS = -L$(TOOLDIR)/reader -L$(XED_ROOT)/obj -L$(TOOLDIR)/cfg -L$(TOOLDIR)/taint
 LIBS = -lcfg -ltrd -lxed -ltaint
 
 CXXFLAGS = -std=c++11 -Wall -g -DDEBUG -O2
