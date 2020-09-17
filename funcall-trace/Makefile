@@ -1,13 +1,15 @@
 DEST = fncall_tracer
 
+# This make file assumes that the environment variable XED_ROOT points to the
+# root of the directory tree containing the xed disassembler
+
 TOOLDIR = ..
-XEDPATH = ../../xed
 
 INCLUDES = -I$(TOOLDIR)/reader \
 	-I$(TOOLDIR)/shared \
-	-I$(XEDPATH)/include/public/xed \
-	-I$(XEDPATH)/obj 
-LDFLAGS = -L$(TOOLDIR)/reader -L$(XEDPATH)/obj
+	-I$(XED_ROOT)/include/public/xed \
+	-I$(XED_ROOT)/obj 
+LDFLAGS = -L$(TOOLDIR)/reader -L$(XED_ROOT)/obj
 LIBS = -ltrd -lxed 
 
 CC = gcc

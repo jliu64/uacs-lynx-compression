@@ -1,14 +1,16 @@
 DEST = memtaint
 
+# This make file assumes that the environment variable XED_ROOT points to the
+# root of the directory tree containing the xed disassembler
+
 TOOLDIR = ..
-XEDPATH = ../../xed
 
 INCLUDES = -I$(TOOLDIR)/reader \
 	-I$(TOOLDIR)/taint \
 	-I$(TOOLDIR)/shared \
-	-I$(XEDPATH)/include/public/xed \
-	-I$(XEDPATH)/obj 
-LDFLAGS = -L$(TOOLDIR)/reader -L$(TOOLDIR)/taint -L$(XEDPATH)/obj
+	-I$(XED_ROOT)/include/public/xed \
+	-I$(XED_ROOT)/obj 
+LDFLAGS = -L$(TOOLDIR)/reader -L$(TOOLDIR)/taint -L$(XED_ROOT)/obj
 LIBS = -ltrd -ltaint -lxed 
 
 CC = gcc
