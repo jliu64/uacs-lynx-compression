@@ -16,7 +16,7 @@ else
 	make -C taint 
 	make -C cfg 
 	make -C slice
-	chdir tracer; build.sh
+	chdir tracer; ./build.sh
 endif
 
 clean : $(TARGETS)
