@@ -26,8 +26,8 @@ Windows (Currently Broken, needs to be updated with a library to read PE files)
 ### Linux ###
 1. Download Pin 3.8+ from [Pin's download page](https://software.intel.com/en-us/articles/pintool-downloads).
 2. Extract Pin from the archive.  Set the environment variable `PIN_ROOT` to point to Pin's base directory.  This directory will henceforth be referred to as `$PIN_ROOT`.
-3. Checkout the toolset into an appropriate directory.
-5. Navigate to the `tracer` subdirectory of the toolset.
+3. Checkout the toolset into an appropriate directory.  We will refer to this directory as `TOOLS_DIR`.
+5. Navigate to the directory `$TOOLS_DIR/tracer`.
 6. Run build.sh to build both the x86-64 and x86 versions of the tracer. 
 
 ### Windows ###
@@ -44,9 +44,9 @@ Windows (Currently Broken, needs to be updated with a library to read PE files)
 
 ## Running ##
 
-A trace can be created for an executable by running the following command:
+A trace can be created for an executable by running the following command, where `$ARCH` is either `obj-ia32` (for the IA-32 architecture) or `obj-intel64` (for the x86-64 architecture):
 
-$PIN_ROOT/pin [pin_options] -t $PIN_ROOT/source/tools/toolset/tracer/$ARCH/$TRACER_LIB [tool_options] -- <program> [program_options]
+`$PIN_ROOT/pin [pin_options] -t $TOOLS_DIR/tracer/$ARCH/$TRACER_LIB [tool_options] -- <program> [program_options]`
 
 Variable         | Description
 -----------------|------------
