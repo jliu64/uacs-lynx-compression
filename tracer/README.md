@@ -32,15 +32,15 @@ Windows (Currently Broken, needs to be updated with a library to read PE files)
 
 ### Windows ###
 (Currently Broken, needs to be updated with a library to read PE files)
-~~1. Download and install Visual Studios 2008, 2010 or 2012~~
-~~2. Download and install Cygwin. Be sure to install Cygwin with make from devel and git.~~
-~~3. Add the Cygwin bin directory to Window’s path environment variable (make sure to log out and log back in or restart after adding the variable)~~
-~~4. Download Pin 3.6+ from [Pin's download page](https://software.intel.com/en-us/articles/pintool-downloads). Note that on a Windows machine, you need visual studios to build the pintool, so make sure to download the version of PIN that corresponds with your version of Visual Studios.~~
-~~5. Extract Pin from the archive. Set the environment variable `PIN_ROOT` to point to Pin's base directory.  This directory will henceforth be referred to as `$PIN_ROOT`.~~
-~~7. Checkout the toolset into an appropriate directory.~~
-~~8. If you want to trace a x86-64 program, open the Visual Studio x64 Win64 Command Prompt, while if you want to trace a x86 program, open the Visual Studio Command Prompt (note, not 64).~~
-~~9. In the command prompt, navigate to the tracer subdirectory of the toolset.~~
-~~10. Run build.cmd to build both the x86-64 and x86 versions of the tracer.~~
+1. ~~Download and install Visual Studios 2008, 2010 or 2012~~
+2. ~~Download and install Cygwin. Be sure to install Cygwin with make from devel and git.~~
+3. ~~Add the Cygwin bin directory to Window’s path environment variable (make sure to log out and log back in or restart after adding the variable)~~
+4. ~~Download Pin 3.6+ from [Pin's download page](https://software.intel.com/en-us/articles/pintool-downloads). Note that on a Windows machine, you need visual studios to build the pintool, so make sure to download the version of PIN that corresponds with your version of Visual Studios.~~
+5. ~~Extract Pin from the archive. Set the environment variable `PIN_ROOT` to point to Pin's base directory.  This directory will henceforth be referred to as `$PIN_ROOT`.~~
+7. ~~Checkout the toolset into an appropriate directory.~~
+8. ~~If you want to trace a x86-64 program, open the Visual Studio x64 Win64 Command Prompt, while if you want to trace a x86 program, open the Visual Studio Command Prompt (note, not 64).~~
+9. ~~In the command prompt, navigate to the tracer subdirectory of the toolset.~~
+10. ~~Run build.cmd to build both the x86-64 and x86 versions of the tracer.~~
 
 ## Running ##
 
