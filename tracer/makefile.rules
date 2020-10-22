@@ -66,7 +66,7 @@ DLL_ROOTS :=
 #TOOL_CXXFLAGS += -I$(LIBELF_LOC)
 #TOOL_LPATHS += -L$(LIBELF_LOC)
 #TOOL_LIBS += -lelf
-LIB_ROOTS := 
+LIB_ROOTS := /usr/local/lib
 PIN_TOOL_CXXFLAGS := $(TOOL_CXXFLAGS) -I../shared 
 PIN_TOOL_CFLAGS := $(TOOL_CFLAGS) -I../shared
 
@@ -84,7 +84,8 @@ else ifeq ($(FORMAT), INFO_SEL)
 	TOOL_CXXFLAGS += -D_FILE_OFFSET_BITS=64 -std=c++0x -I../shared -DTRACE_INFO_SEL 
 else ifeq ($(FORMAT), DATA_OPS)
     OBJECT_ROOTS := Trace ShadowMemory PinLynxReg RegVector StringTable DataOpsTrace Helpers
-	TOOL_CXXFLAGS += -D_FILE_OFFSET_BITS=64 -std=c++0x -I../shared -DDATA_OPS 
+	TOOL_CXXFLAGS += -D_FILE_OFFSET_BITS=64 -std=c++0x -I../shared -DDATA_OPS -I/usr/local/include -lz
+	TOOL_LDFLAGS += -L/usr/local/lib
 endif
 
 ##############################################################
@@ -112,7 +113,10 @@ $(OBJDIR)LynxReg$(OBJ_SUFFIX): ../shared/LynxReg.c ../shared/LynxReg.h
 
 $(OBJDIR)XedLynxReg$(OBJ_SUFFIX): ../shared/XedLynxReg.c ../shared/XedLynxReg.h
 	$(CC) $(PIN_TOOL_CFLAGS) $(COMP_OBJ)$@ $<
-	
+
+$(OBJDIR)DataOpsTrace$(OBJ_SUFFIX): DataOpsTrace.cpp /usr/local/include/zlib.h
+	$(CXX) $(TOOL_CXXFLAGS) $(COMP_OBJ)$@ $<
+
 # Build the intermediate object file.
 #$(OBJDIR)trace$(OBJ_SUFFIX): trace.cpp ShadowMemory.h LynxReg.h
 #	$(CXX) $(OTHER_CXXFLAGS) $(TOOL_CXXFLAGS) $(COMP_OBJ)$@ $<
