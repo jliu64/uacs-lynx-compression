@@ -163,3 +163,557 @@ uname = Linux
 --------------------
 
 
+--------------------
+./configure --prefix=/media/sf_VMShare/pin-3.16/source/tools/uacs-lynx/zlib --static
+Sun 25 Oct 2020 05:40:42 PM MST
+Checking for gcc...
+=== ztest3213.c ===
+extern int getchar();
+int hello() {return getchar();}
+===
+gcc -c ztest3213.c
+... using gcc
+
+Checking for obsessive-compulsive compiler options...
+=== ztest3213.c ===
+int foo() { return 0; }
+===
+gcc -c -O3 ztest3213.c
+
+Building static library libz.a version 1.2.11 with gcc.
+
+=== ztest3213.c ===
+#include <stdio.h>
+#include <stdlib.h>
+size_t dummy = 0;
+===
+gcc -c -O3 ztest3213.c
+Checking for size_t... Yes.
+
+
+=== ztest3213.c ===
+#include <sys/types.h>
+off64_t dummy = 0;
+===
+gcc -c -O3 -D_LARGEFILE64_SOURCE=1 ztest3213.c
+Checking for off64_t... Yes.
+Checking for fseeko... Yes.
+
+=== ztest3213.c ===
+#include <string.h>
+#include <errno.h>
+int main() { return strlen(strerror(errno)); }
+===
+gcc -O3 -D_LARGEFILE64_SOURCE=1 -o ztest3213 ztest3213.c
+Checking for strerror... Yes.
+
+=== ztest3213.c ===
+#include <unistd.h>
+int main() { return 0; }
+===
+gcc -c -O3 -D_LARGEFILE64_SOURCE=1 ztest3213.c
+Checking for unistd.h... Yes.
+
+=== ztest3213.c ===
+#include <stdarg.h>
+int main() { return 0; }
+===
+gcc -c -O3 -D_LARGEFILE64_SOURCE=1 ztest3213.c
+Checking for stdarg.h... Yes.
+
+=== ztest3213.c ===
+#include <stdio.h>
+#include <stdarg.h>
+#include "zconf.h"
+int main()
+{
+#ifndef STDC
+  choke me
+#endif
+  return 0;
+}
+===
+gcc -c -O3 -D_LARGEFILE64_SOURCE=1 ztest3213.c
+Checking whether to use vs[n]printf() or s[n]printf()... using vs[n]printf().
+
+=== ztest3213.c ===
+#include <stdio.h>
+#include <stdarg.h>
+int mytest(const char *fmt, ...)
+{
+  char buf[20];
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(buf, sizeof(buf), fmt, ap);
+  va_end(ap);
+  return 0;
+}
+int main()
+{
+  return (mytest("Hello%d\n", 1));
+}
+===
+gcc -O3 -D_LARGEFILE64_SOURCE=1 -o ztest3213 ztest3213.c
+Checking for vsnprintf() in stdio.h... Yes.
+
+=== ztest3213.c ===
+#include <stdio.h>
+#include <stdarg.h>
+int mytest(const char *fmt, ...)
+{
+  int n;
+  char buf[20];
+  va_list ap;
+  va_start(ap, fmt);
+  n = vsnprintf(buf, sizeof(buf), fmt, ap);
+  va_end(ap);
+  return n;
+}
+int main()
+{
+  return (mytest("Hello%d\n", 1));
+}
+===
+gcc -c -O3 -D_LARGEFILE64_SOURCE=1 ztest3213.c
+Checking for return value of vsnprintf()... Yes.
+
+=== ztest3213.c ===
+#define ZLIB_INTERNAL __attribute__((visibility ("hidden")))
+int ZLIB_INTERNAL foo;
+int main()
+{
+  return 0;
+}
+===
+gcc -c -O3 -D_LARGEFILE64_SOURCE=1 ztest3213.c
+Checking for attribute(visibility) support... Yes.
+
+ALL = static all64
+AR = ar
+ARFLAGS = rc
+CC = gcc
+CFLAGS = -O3 -D_LARGEFILE64_SOURCE=1 -DHAVE_HIDDEN
+CPP = gcc -E
+EXE =
+LDCONFIG = ldconfig
+LDFLAGS =
+LDSHARED = gcc
+LDSHAREDLIBC = -lc
+OBJC = $(OBJZ) $(OBJG)
+PIC_OBJC = $(PIC_OBJZ) $(PIC_OBJG)
+RANLIB = ranlib
+SFLAGS = -O3 -fPIC -D_LARGEFILE64_SOURCE=1 -DHAVE_HIDDEN
+SHAREDLIB =
+SHAREDLIBM =
+SHAREDLIBV =
+STATICLIB = libz.a
+TEST = all teststatic test64
+VER = 1.2.11
+Z_U4 =
+SRCDIR =
+exec_prefix = ${prefix}
+includedir = ${prefix}/include
+libdir = ${exec_prefix}/lib
+mandir = ${prefix}/share/man
+prefix = /media/sf_VMShare/pin-3.16/source/tools/uacs-lynx/zlib
+sharedlibdir = ${libdir}
+uname = Linux
+--------------------
+
+
+--------------------
+./configure --prefix=/media/sf_VMShare/pin-3.16/source/tools/uacs-lynx/zlib --static
+Sun 25 Oct 2020 06:01:17 PM MST
+Checking for gcc...
+=== ztest3569.c ===
+extern int getchar();
+int hello() {return getchar();}
+===
+gcc -c ztest3569.c
+... using gcc
+
+Checking for obsessive-compulsive compiler options...
+=== ztest3569.c ===
+int foo() { return 0; }
+===
+gcc -c -O3 ztest3569.c
+
+Building static library libz.a version 1.2.11 with gcc.
+
+=== ztest3569.c ===
+#include <stdio.h>
+#include <stdlib.h>
+size_t dummy = 0;
+===
+gcc -c -O3 ztest3569.c
+Checking for size_t... Yes.
+
+
+=== ztest3569.c ===
+#include <sys/types.h>
+off64_t dummy = 0;
+===
+gcc -c -O3 -D_LARGEFILE64_SOURCE=1 ztest3569.c
+Checking for off64_t... Yes.
+Checking for fseeko... Yes.
+
+=== ztest3569.c ===
+#include <string.h>
+#include <errno.h>
+int main() { return strlen(strerror(errno)); }
+===
+gcc -O3 -D_LARGEFILE64_SOURCE=1 -o ztest3569 ztest3569.c
+Checking for strerror... Yes.
+
+=== ztest3569.c ===
+#include <unistd.h>
+int main() { return 0; }
+===
+gcc -c -O3 -D_LARGEFILE64_SOURCE=1 ztest3569.c
+Checking for unistd.h... Yes.
+
+=== ztest3569.c ===
+#include <stdarg.h>
+int main() { return 0; }
+===
+gcc -c -O3 -D_LARGEFILE64_SOURCE=1 ztest3569.c
+Checking for stdarg.h... Yes.
+
+=== ztest3569.c ===
+#include <stdio.h>
+#include <stdarg.h>
+#include "zconf.h"
+int main()
+{
+#ifndef STDC
+  choke me
+#endif
+  return 0;
+}
+===
+gcc -c -O3 -D_LARGEFILE64_SOURCE=1 ztest3569.c
+Checking whether to use vs[n]printf() or s[n]printf()... using vs[n]printf().
+
+=== ztest3569.c ===
+#include <stdio.h>
+#include <stdarg.h>
+int mytest(const char *fmt, ...)
+{
+  char buf[20];
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(buf, sizeof(buf), fmt, ap);
+  va_end(ap);
+  return 0;
+}
+int main()
+{
+  return (mytest("Hello%d\n", 1));
+}
+===
+gcc -O3 -D_LARGEFILE64_SOURCE=1 -o ztest3569 ztest3569.c
+Checking for vsnprintf() in stdio.h... Yes.
+
+=== ztest3569.c ===
+#include <stdio.h>
+#include <stdarg.h>
+int mytest(const char *fmt, ...)
+{
+  int n;
+  char buf[20];
+  va_list ap;
+  va_start(ap, fmt);
+  n = vsnprintf(buf, sizeof(buf), fmt, ap);
+  va_end(ap);
+  return n;
+}
+int main()
+{
+  return (mytest("Hello%d\n", 1));
+}
+===
+gcc -c -O3 -D_LARGEFILE64_SOURCE=1 ztest3569.c
+Checking for return value of vsnprintf()... Yes.
+
+=== ztest3569.c ===
+#define ZLIB_INTERNAL __attribute__((visibility ("hidden")))
+int ZLIB_INTERNAL foo;
+int main()
+{
+  return 0;
+}
+===
+gcc -c -O3 -D_LARGEFILE64_SOURCE=1 ztest3569.c
+Checking for attribute(visibility) support... Yes.
+
+ALL = static all64
+AR = ar
+ARFLAGS = rc
+CC = gcc
+CFLAGS = -O3 -D_LARGEFILE64_SOURCE=1 -DHAVE_HIDDEN
+CPP = gcc -E
+EXE =
+LDCONFIG = ldconfig
+LDFLAGS =
+LDSHARED = gcc
+LDSHAREDLIBC = -lc
+OBJC = $(OBJZ) $(OBJG)
+PIC_OBJC = $(PIC_OBJZ) $(PIC_OBJG)
+RANLIB = ranlib
+SFLAGS = -O3 -fPIC -D_LARGEFILE64_SOURCE=1 -DHAVE_HIDDEN
+SHAREDLIB =
+SHAREDLIBM =
+SHAREDLIBV =
+STATICLIB = libz.a
+TEST = all teststatic test64
+VER = 1.2.11
+Z_U4 =
+SRCDIR =
+exec_prefix = ${prefix}
+includedir = ${prefix}/include
+libdir = ${exec_prefix}/lib
+mandir = ${prefix}/share/man
+prefix = /media/sf_VMShare/pin-3.16/source/tools/uacs-lynx/zlib
+sharedlibdir = ${libdir}
+uname = Linux
+--------------------
+
+
+--------------------
+./configure --prefix=/media/sf_VMShare/pin-3.16/source/tools/uacs-lynx/zlib --static
+Sun 25 Oct 2020 07:32:53 PM MST
+Checking for gcc...
+=== ztest10165.c ===
+extern int getchar();
+int hello() {return getchar();}
+===
+gcc -c ztest10165.c
+... using gcc
+
+Checking for obsessive-compulsive compiler options...
+=== ztest10165.c ===
+int foo() { return 0; }
+===
+gcc -c -O3 ztest10165.c
+
+Building static library libz.a version 1.2.11 with gcc.
+
+=== ztest10165.c ===
+#include <stdio.h>
+#include <stdlib.h>
+size_t dummy = 0;
+===
+gcc -c -O3 ztest10165.c
+Checking for size_t... Yes.
+
+
+=== ztest10165.c ===
+#include <sys/types.h>
+off64_t dummy = 0;
+===
+gcc -c -O3 -D_LARGEFILE64_SOURCE=1 ztest10165.c
+Checking for off64_t... Yes.
+Checking for fseeko... Yes.
+
+=== ztest10165.c ===
+#include <string.h>
+#include <errno.h>
+int main() { return strlen(strerror(errno)); }
+===
+gcc -O3 -D_LARGEFILE64_SOURCE=1 -o ztest10165 ztest10165.c
+Checking for strerror... Yes.
+
+=== ztest10165.c ===
+#include <unistd.h>
+int main() { return 0; }
+===
+gcc -c -O3 -D_LARGEFILE64_SOURCE=1 ztest10165.c
+Checking for unistd.h... Yes.
+
+=== ztest10165.c ===
+#include <stdarg.h>
+int main() { return 0; }
+===
+gcc -c -O3 -D_LARGEFILE64_SOURCE=1 ztest10165.c
+Checking for stdarg.h... Yes.
+
+=== ztest10165.c ===
+#include <stdio.h>
+#include <stdarg.h>
+#include "zconf.h"
+int main()
+{
+#ifndef STDC
+  choke me
+#endif
+  return 0;
+}
+===
+gcc -c -O3 -D_LARGEFILE64_SOURCE=1 ztest10165.c
+Checking whether to use vs[n]printf() or s[n]printf()... using vs[n]printf().
+
+=== ztest10165.c ===
+#include <stdio.h>
+#include <stdarg.h>
+int mytest(const char *fmt, ...)
+{
+  char buf[20];
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(buf, sizeof(buf), fmt, ap);
+  va_end(ap);
+  return 0;
+}
+int main()
+{
+  return (mytest("Hello%d\n", 1));
+}
+===
+gcc -O3 -D_LARGEFILE64_SOURCE=1 -o ztest10165 ztest10165.c
+Checking for vsnprintf() in stdio.h... Yes.
+
+=== ztest10165.c ===
+#include <stdio.h>
+#include <stdarg.h>
+int mytest(const char *fmt, ...)
+{
+  int n;
+  char buf[20];
+  va_list ap;
+  va_start(ap, fmt);
+  n = vsnprintf(buf, sizeof(buf), fmt, ap);
+  va_end(ap);
+  return n;
+}
+int main()
+{
+  return (mytest("Hello%d\n", 1));
+}
+===
+gcc -c -O3 -D_LARGEFILE64_SOURCE=1 ztest10165.c
+Checking for return value of vsnprintf()... Yes.
+
+=== ztest10165.c ===
+#define ZLIB_INTERNAL __attribute__((visibility ("hidden")))
+int ZLIB_INTERNAL foo;
+int main()
+{
+  return 0;
+}
+===
+gcc -c -O3 -D_LARGEFILE64_SOURCE=1 ztest10165.c
+Checking for attribute(visibility) support... Yes.
+
+ALL = static all64
+AR = ar
+ARFLAGS = rc
+CC = gcc
+CFLAGS = -O3 -D_LARGEFILE64_SOURCE=1 -DHAVE_HIDDEN
+CPP = gcc -E
+EXE =
+LDCONFIG = ldconfig
+LDFLAGS =
+LDSHARED = gcc
+LDSHAREDLIBC = -lc
+OBJC = $(OBJZ) $(OBJG)
+PIC_OBJC = $(PIC_OBJZ) $(PIC_OBJG)
+RANLIB = ranlib
+SFLAGS = -O3 -fPIC -D_LARGEFILE64_SOURCE=1 -DHAVE_HIDDEN
+SHAREDLIB =
+SHAREDLIBM =
+SHAREDLIBV =
+STATICLIB = libz.a
+TEST = all teststatic test64
+VER = 1.2.11
+Z_U4 =
+SRCDIR =
+exec_prefix = ${prefix}
+includedir = ${prefix}/include
+libdir = ${exec_prefix}/lib
+mandir = ${prefix}/share/man
+prefix = /media/sf_VMShare/pin-3.16/source/tools/uacs-lynx/zlib
+sharedlibdir = ${libdir}
+uname = Linux
+--------------------
+
+
+--------------------
+./configure --prefix=/media/sf_VMShare/pin-3.16/source/tools/uacs-lynx/zlib --archs=-arch x86_64 --static
+Sun 25 Oct 2020 07:37:19 PM MST
+Checking for gcc...
+=== ztest12016.c ===
+extern int getchar();
+int hello() {return getchar();}
+===
+gcc -c ztest12016.c
+... using gcc
+
+Checking for obsessive-compulsive compiler options...
+=== ztest12016.c ===
+int foo() { return 0; }
+===
+gcc -c -O3 -arch x86_64 ztest12016.c
+gcc: error: x86_64: No such file or directory
+gcc: error: unrecognized command line option ‘-arch’
+(exit code 1)
+Compiler error reporting is too harsh for ./configure (perhaps remove -Werror).
+** ./configure aborting.
+--------------------
+
+
+--------------------
+./configure -h
+Sun 25 Oct 2020 07:37:40 PM MST
+usage:
+  configure [--const] [--zprefix] [--prefix=PREFIX]  [--eprefix=EXPREFIX]
+    [--static] [--64] [--libdir=LIBDIR] [--sharedlibdir=LIBDIR]
+    [--includedir=INCLUDEDIR] [--archs="-arch i386 -arch x86_64"]
+--------------------
+./configure --prefix=/media/sf_VMShare/pin-3.16/source/tools/uacs-lynx/zlib --static --archs=-arch i386 -arch x86_64
+Sun 25 Oct 2020 07:38:47 PM MST
+Checking for gcc...
+=== ztest12074.c ===
+extern int getchar();
+int hello() {return getchar();}
+===
+gcc -c ztest12074.c
+... using gcc
+
+Checking for obsessive-compulsive compiler options...
+=== ztest12074.c ===
+int foo() { return 0; }
+===
+gcc -c -O3 -arch i386 -arch x86_64 ztest12074.c
+gcc: error: i386: No such file or directory
+gcc: error: x86_64: No such file or directory
+gcc: error: unrecognized command line option ‘-arch’
+gcc: error: unrecognized command line option ‘-arch’
+(exit code 1)
+Compiler error reporting is too harsh for ./configure (perhaps remove -Werror).
+** ./configure aborting.
+--------------------
+
+
+--------------------
+./configure --archs=x86_64
+Sun 25 Oct 2020 07:40:44 PM MST
+Checking for gcc...
+=== ztest12110.c ===
+extern int getchar();
+int hello() {return getchar();}
+===
+gcc -c ztest12110.c
+... using gcc
+
+Checking for obsessive-compulsive compiler options...
+=== ztest12110.c ===
+int foo() { return 0; }
+===
+gcc -c -O3 x86_64 ztest12110.c
+gcc: error: x86_64: No such file or directory
+(exit code 1)
+Compiler error reporting is too harsh for ./configure (perhaps remove -Werror).
+** ./configure aborting.
+--------------------
+
+
