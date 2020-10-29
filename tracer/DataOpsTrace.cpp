@@ -16,9 +16,9 @@
 #include <cstdio>
 #include <iostream>
 
-extern "C" {
-	#include "zlib.h"
-}
+//extern "C" {
+#include "zlib.h"
+//}
 
 using std::cout;
 using std::endl;
