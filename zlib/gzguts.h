@@ -123,6 +123,16 @@
   extern void   free   OF((voidpf ptr));
 #endif
 
+/* When zlib is used in conjunction with pin, the resulting code has trouble
+   finding __errno_location: the error message is:
+   
+       dlopen failed: cannot locate symbol "__errno_location"
+
+   We (the authors of the UACS-lynx toolset, who have no affiliation with
+   the authors of zlib) have decided to work around this problem by replacing
+   the call to strerr() with a fixed string (see below).
+ */
+
 /* get errno and strerror definition */
 #if defined UNDER_CE
 #  include <windows.h>
@@ -130,11 +140,13 @@
 #else
 #  ifndef NO_STRERROR
 #    include <errno.h>
-#    define zstrerror() strerror(errno)
+#    define zstrerror() "stdio error (consult errno)"  /* originally: strerror(errno) */
 #  else
 #    define zstrerror() "stdio error (consult errno)"
 #  endif
 #endif
+
+
 
 /* provide prototypes for these when building zlib without LFS */
 #if !defined(_LARGEFILE64_SOURCE) || _LFS64_LARGEFILE-0 == 0

@@ -1,3 +1,0 @@
-Pin: pin-3.16-98275-e0db48c31
-Copyright 2002-2020 Intel Corporation.
-E:  Unable to load /media/sf_VMShare/pin-3.16/source/tools/uacs-lynx/tracer/obj-intel64/Tracer.so: dlopen failed: cannot locate symbol "__errno_location" referenced by "/media/sf_VMShare/pin-3.16/source/tools/uacs-lynx/tracer/obj-intel64/Tracer.so"...

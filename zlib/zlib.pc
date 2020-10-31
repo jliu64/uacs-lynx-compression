@@ -1,4 +1,4 @@
-prefix=/usr/local
+prefix=/media/sf_VMShare/pin-3.16/source/tools/uacs-lynx/zlib
 exec_prefix=${prefix}
 libdir=${exec_prefix}/lib
 sharedlibdir=${libdir}

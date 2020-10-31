@@ -7,7 +7,7 @@ For those of you brave enough to read or modify this code, there are a few impor
 
 The analysis functions (DataOpsTrace.cpp) are intended to run every time an instruction executes. As a result, we want to do as little processing in here as possible. In some cases, this is not possible. Consider processing memory reads/writes for example. The address for these is (usually) not known until runtime, so all of this processing happens in the analysis functions. Another thing that will probably be noticed is that there are a lot of small functions. This was done to allow PIN to inline the analysis routine, and provide flexibility (We can choose what we want to execute, allowing us to turn some things off). 
 
-The current build script, build.sh, only builds the x86-64 version of the tracer; the script for the x86 version can be un-commented to build a 32-bit version. In this case, zlib will also have to be compiled for the 32-bit version, using `CC=gcc -m32 ./configure --prefix=`pwd` --static` and `make test` instead of the commands specified for zlib below. 
+The current build script, build.sh, only builds the x86-64 version of the tracer; the script for the x86 version can be un-commented to build a 32-bit version. In this case, zlib will also have to be compiled for the 32-bit version, using `CC=gcc -m32 -fPIC ./configure --prefix=`pwd` --static` instead of the configure command specified for zlib below. 
 
 ## Prerequisites ##
 
@@ -30,7 +30,7 @@ Windows (Currently Broken, needs to be updated with a library to read PE files)
 2. Extract Pin from the archive.  Set the environment variable `PIN_ROOT` to point to Pin's base directory.  This directory will henceforth be referred to as `$PIN_ROOT`.
 3. Checkout the toolset into an appropriate directory.  We will refer to this directory as `TOOLS_DIR`.
 4. Navigate to the directory `$TOOLS_DIR/../zlib`.
-5. Compile and test zlib using `./configure --prefix=`pwd` --static` and `make test`.
+5. Compile, test, and install zlib using `CC="gcc -fPIC" ./configure --prefix=`pwd` --static`, `make test`, and `make install`.
 6. Navigate to the directory `$TOOLS_DIR/tracer`.
 7. Run build.sh to build the x86-64 version of the tracer. 
 
