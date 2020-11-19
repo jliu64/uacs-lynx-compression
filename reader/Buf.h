@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "zlib.h"
 
 #define BUF_SIZE 4096
 
@@ -20,6 +21,12 @@ typedef struct Buf_t {
     uint64_t filePos;
     // how many bytes to read from the file before stopping
     uint64_t readLimit;
+	// The buffer for compressed file input
+	uint8_t compressedBuf[BUF_SIZE];
+	// The size of the compressed data buffer
+	uint16_t compressedBufSize;
+	// The z_stream object used by zlib to decompress data
+	z_stream *strm;
 } Buf;
 
 int reachedReadLimit(Buf *buf, uint8_t *pos);
