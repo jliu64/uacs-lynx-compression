@@ -3,6 +3,7 @@
  *  are efficiently read. Note, all reads must be less than BUF_SIZE (hopefully significantly less).
  **/
 
+#include <assert.h>
 #include "Buf.h"
 #include "ReaderUtils.h"
 
@@ -115,7 +116,7 @@ Buf *createBuf(FILE *file, uint64_t filePos, uint64_t readLimit) {
     (buf->strm)->opaque = Z_NULL;
     (buf->strm)->avail_in = 0;
     (buf->strm)->next_in = Z_NULL;
-    ret = inflateInit(buf->strm);
+    int ret = inflateInit(buf->strm);
     assert(ret == Z_OK);
 	
     //load initial information into buf

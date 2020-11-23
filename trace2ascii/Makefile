@@ -3,9 +3,9 @@
 
 CC=gcc
 CFLAGS=-g
-INCLUDES=-I$(XED_ROOT)/include/public/xed -I$(XED_ROOT)/obj -I../reader -I../shared
-LIBPATHS=-L$(XED_ROOT)/obj -L../reader
-LIBS=-ltrd -lxed
+INCLUDES=-I$(XED_ROOT)/include/public/xed -I$(XED_ROOT)/obj -I../zlib/include -I../reader -I../shared
+LIBPATHS=-L$(XED_ROOT)/obj -L../zlib/lib -L../reader
+LIBS=-ltrd -lxed -lz
 
 trace2ascii : trace2ascii.c
 	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $^ $(LIBPATHS) $(LIBS)

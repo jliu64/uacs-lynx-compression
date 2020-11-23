@@ -16,9 +16,9 @@ CFILES =  ../shared/XedLynxReg.c \
 	Reader.c
 OFILES = $(CFILES:c=o)
 CFLAGS = -Wall -O2 -g -c
-INCLUDES = -I$(XED_ROOT)/include/public/xed -I$(XED_ROOT)/obj -I../shared -I../reader
-LDFLAGS = -g -L$(XED_ROOT)/obj
-LIBS = -lxed
+INCLUDES = -I$(XED_ROOT)/include/public/xed -I$(XED_ROOT)/obj -I../shared -I../reader -I../zlib/include
+LDFLAGS = -g -L$(XED_ROOT)/obj -L../zlib/lib
+LIBS = -lxed -lz
 
 all : libtrd.a
 
