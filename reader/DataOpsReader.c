@@ -573,7 +573,7 @@ static uint8_t *parseIns(DataOpsState *state, MemState *memState, RegState *regS
     predictions[ins->tid].predAddr = ins->addr + ins->binSize;
     setThreadVal(regState, LYNX_RIP, ins->tid, (uint8_t *)(&predictions[ins->tid].predAddr));
 
-    if ((pos - startingPos + 2) != *((uint16_t *) pos)) {
+    if ((pos - startingPos + 2) != *((uint16_t *) pos)) {//ERROR HERE
         throwError("Event size does not match expected size");
     }
 

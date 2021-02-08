@@ -77,7 +77,12 @@ char *readStrTableEntry(FILE *trace, SectionEntry *strTableEntry) {
         return NULL;
     }
 
-    if (fread(strTable, 1, strTableEntry->size, trace) != strTableEntry->size) {
+	int x = fread(strTable, 1, strTableEntry->size, trace);
+	if (feof(trace))//DELETEME
+		printf("EOF\n");//DELETEME
+    if (x != strTableEntry->size) {
+		printf("Right size: %lu\n", strTableEntry->size);//DELETEME
+		printf("Actual size: %d\n", x);//DELETEME
         free(strTable);
         return NULL;
     }

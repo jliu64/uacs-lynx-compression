@@ -31,8 +31,10 @@ uint8_t *loadN(Buf *buf, uint8_t *pos, uint16_t n) {
 		
 		//decompress data from compressed buffer into decompressed buffer until latter full
 		buf->strm->avail_out = dataInd;
-        buf->strm->next_out = &(buf->buf)[inBufAmt];
-		while (buf->strm->avail_out > 0) {
+        buf->strm->next_out = &((buf->buf)[inBufAmt]);//TODO: Test this
+		while (buf->strm->avail_out > 0) { // HERE; infinite loop, out = 2982, in = 189
+			//printf("%d\n", buf->strm->avail_out);//DELETEME
+			//printf("in: %d\n", buf->strm->avail_in);//DELETEME
 			//reset buffer of compressed file data if empty
 			if (buf->strm->avail_in <= 0) {
 				//read size might not be BUF_SIZE if we are near the end of the read region
@@ -57,7 +59,11 @@ uint8_t *loadN(Buf *buf, uint8_t *pos, uint16_t n) {
 				buf->bytesRead += buf->compressedBufSize;
 			}
 			//decompression step
-            int ret = inflate(buf->strm, Z_NO_FLUSH);
+            int ret = inflate(buf->strm, Z_NO_FLUSH);// was Z_FINISH, is returning Z_STREAM_END
+			if (ret == Z_STREAM_END)
+				break;
+			if (buf->strm->msg != NULL)
+				printf("%s\n", buf->strm->msg);// it was a Z_DATA_ERROR; incorrect header check
             assert(ret != Z_STREAM_ERROR);
             switch (ret) {
             case Z_NEED_DICT:
@@ -116,13 +122,15 @@ Buf *createBuf(FILE *file, uint64_t filePos, uint64_t readLimit) {
     (buf->strm)->opaque = Z_NULL;
     (buf->strm)->avail_in = 0;
     (buf->strm)->next_in = Z_NULL;
-    int ret = inflateInit(buf->strm);
+	int ret = inflateInit(buf->strm);
+    //int ret = inflateInit2(buf->strm, -15);//invalid stored block lengths; starting at wrong position?
     assert(ret == Z_OK);
 	
     //load initial information into buf
 	if (fseek(file, filePos, SEEK_SET))
         throwError("Invalid file read position");
 	buf->compressedBufSize = fread(buf->compressedBuf, sizeof(uint8_t), BUF_SIZE, file);
+	assert(buf->compressedBufSize == BUF_SIZE);
 	buf->strm->avail_in = buf->compressedBufSize;
 	buf->strm->next_in = buf->compressedBuf;
     loadN(buf, buf->buf + BUF_SIZE, 1);
