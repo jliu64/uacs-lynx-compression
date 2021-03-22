@@ -21,6 +21,16 @@ uint8_t *loadN(Buf *buf, uint8_t *pos, uint16_t n) {
 	uint16_t dataInd = pos - buf->buf;
 	
 	if ((dataInd + n) > buf->bufSize) {
+		//check if we've already finished reading
+        if (buf->reachedLimit) {
+            return NULL;
+        }
+		
+		//check if we've already finished reading
+        //if (buf->bytesRead >= buf->readLimit) {
+        //    return NULL;
+        //}
+		
 		//determine how much we have left in the buffer
         uint16_t inBufAmt = BUF_SIZE - dataInd;
 		
@@ -32,17 +42,21 @@ uint8_t *loadN(Buf *buf, uint8_t *pos, uint16_t n) {
 		//decompress data from compressed buffer into decompressed buffer until latter full
 		buf->strm->avail_out = dataInd;
         buf->strm->next_out = &((buf->buf)[inBufAmt]);//TODO: Test this
-		while (buf->strm->avail_out > 0) { // HERE; infinite loop, out = 2982, in = 189
+		while (buf->strm->avail_out > 0) {
 			//printf("%d\n", buf->strm->avail_out);//DELETEME
 			//printf("in: %d\n", buf->strm->avail_in);//DELETEME
 			//reset buffer of compressed file data if empty
 			if (buf->strm->avail_in <= 0) {
+				//fprintf(stderr, "Empty input stream, refilling\n");//DELETEME, bytesRead is 0 at end of stream?
 				//read size might not be BUF_SIZE if we are near the end of the read region
 				uint16_t readSize = (BUF_SIZE < (buf->readLimit - buf->bytesRead)) 
 					? BUF_SIZE : buf->readLimit - buf->bytesRead;
-				//break if we've already read and decompressed everything from the read region
-				if (readSize <= 0)
+				//return if we've already read and decompressed everything from the read region
+				if (readSize <= 0) {
+					//fprintf(stderr, "Returning\n");//DELETEME
+					buf->reachedLimit = 1;
 					break;
+				}
 				//go to appropriate file position
 				if (fseek(buf->file, buf->filePos, SEEK_SET))
 					throwError("Invalid file read position");
@@ -60,8 +74,12 @@ uint8_t *loadN(Buf *buf, uint8_t *pos, uint16_t n) {
 			}
 			//decompression step
             int ret = inflate(buf->strm, Z_NO_FLUSH);// was Z_FINISH, is returning Z_STREAM_END
-			if (ret == Z_STREAM_END)
-				break;
+			if (ret == Z_STREAM_END) {
+				//fprintf(stderr, "Read limit: %lu\n", buf->readLimit);//DELETEME
+				//fprintf(stderr, "Bytes read: %lu\n", buf->bytesRead);//DELETEME
+				buf->reachedLimit = 1;
+				break;//
+			}
 			if (buf->strm->msg != NULL)
 				printf("%s\n", buf->strm->msg);// it was a Z_DATA_ERROR; incorrect header check
             assert(ret != Z_STREAM_ERROR);
@@ -76,6 +94,12 @@ uint8_t *loadN(Buf *buf, uint8_t *pos, uint16_t n) {
         }
 		//update buffer size (avail_out is remaining space in zlib output buffer)
 		buf->bufSize = BUF_SIZE - buf->strm->avail_out;
+		//fprintf(stderr, "Bufsize: %d, wanted %u\n", buf->bufSize, n);//DELETEME
+		
+		if (buf->reachedLimit && buf->bufSize < n) {
+			//fprintf(stderr, "returned NULL\n");//DELETEME
+			return NULL;
+		}
 		
         return buf->buf;
     }
@@ -91,7 +115,9 @@ uint8_t *loadN(Buf *buf, uint8_t *pos, uint16_t n) {
  * Output: Number of bytes remaining in Buf until we reach limit
  **/
 uint64_t getBytesRemaining(Buf *buf, uint8_t *pos) {
-    return buf->readLimit - buf->bytesRead + buf->bufSize - (pos - buf->buf);
+    //return buf->readLimit - buf->bytesRead + buf->bufSize - (pos - buf->buf);
+	//fprintf(stderr, "Remaining: %d\n", buf->bufSize);//DELETEME
+	return buf->bufSize - (pos - buf->buf); // Only amount remaining in decompressed buffer
 }
 
 /**
@@ -114,6 +140,7 @@ Buf *createBuf(FILE *file, uint64_t filePos, uint64_t readLimit) {
     buf->bytesRead = 0;
     buf->readLimit = readLimit;
     buf->bufSize = 0;
+	buf->reachedLimit = 0;
 	buf->strm = malloc(sizeof(z_stream));
 	
 	//allocate inflate state
@@ -129,10 +156,19 @@ Buf *createBuf(FILE *file, uint64_t filePos, uint64_t readLimit) {
     //load initial information into buf
 	if (fseek(file, filePos, SEEK_SET))
         throwError("Invalid file read position");
-	buf->compressedBufSize = fread(buf->compressedBuf, sizeof(uint8_t), BUF_SIZE, file);
-	assert(buf->compressedBufSize == BUF_SIZE);
+	//buf->compressedBufSize = fread(buf->compressedBuf, sizeof(uint8_t), BUF_SIZE, file);
+	//assert(buf->compressedBufSize == BUF_SIZE);
+	uint16_t readSize = (BUF_SIZE < buf->readLimit)
+		? BUF_SIZE : buf->readLimit;
+	//read file data
+	buf->compressedBufSize = fread(buf->compressedBuf, sizeof(uint8_t), readSize, buf->file);
+	if (buf->compressedBufSize < readSize)
+		throwError("Unable to read expected data size from file");
+	if ((buf->filePos = ftell(buf->file)) == -1)
+		throwError("Invalid file position after read");
 	buf->strm->avail_in = buf->compressedBufSize;
 	buf->strm->next_in = buf->compressedBuf;
+	buf->bytesRead += readSize;
     loadN(buf, buf->buf + BUF_SIZE, 1);
 
     return buf;

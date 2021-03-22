@@ -1181,7 +1181,8 @@ void endFile() {
     strTable.dumpTable(traceFile);
     UINT64 strPos = tracePos + dataSize;
     UINT64 strSize = strTable.getTotalStrSize();
-	printf("Actual (trace) size: %lu\n", strSize);//DELETEME
+	printf("Actual (trace) size: %lu\n", traceSize);//DELETEME
+	printf("Actual (data) size: %lu\n", dataSize);//DELETEME
 
     /*fwrite(segments, sizeof(SegmentLoad), numSegments, traceFile);
     UINT64 segmentPos = strPos + strSize;

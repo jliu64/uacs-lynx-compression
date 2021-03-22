@@ -241,7 +241,7 @@ void parseDataOpsData(DataOpsState *state, MemState *memState, RegState *regStat
             } 
             default:
                 dataPos += 1;
-                throwError("Invalid data operand type found");
+                throwError("Invalid data operand type found");//HERE
         }
 
         //try to get the next label, if we can't that's fine because we are at the beginning of new data
@@ -643,7 +643,7 @@ uint32_t readDataOpsEvent(DataOpsState *state, MemState *memState, RegState *reg
         uint8_t *tmpPos;
         if ((tmpPos = loadN(traceBuf, tracePos, 38)) == NULL) {
             uint64_t remaining = getBytesRemaining(traceBuf, tracePos);
-            if (remaining == 0) {
+            if (remaining == 0) {//HERE
                 return 0;
             }
             

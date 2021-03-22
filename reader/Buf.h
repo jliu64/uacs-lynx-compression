@@ -26,6 +26,8 @@ typedef struct Buf_t {
 	// The size of the compressed data buffer
 	uint16_t compressedBufSize;
 	// The z_stream object used by zlib to decompress data
+	int reachedLimit;
+	// Whether we've hit readLimit or not (and set this flag after decompressing remaining data)
 	z_stream *strm;
 } Buf;
 
