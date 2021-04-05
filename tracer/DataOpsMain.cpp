@@ -55,6 +55,7 @@ bool writeDestRegs = true;
 bool writeMemWrites = true;
 bool regsWritten = true;
 bool memWritten = true;
+bool doCompression = true;
 
 KNOB<bool> srcidOff(KNOB_MODE_WRITEONCE, "pintool", "nosrcid", "", "Don't include source IDs in the trace");
 KNOB<bool> fnidOff(KNOB_MODE_WRITEONCE, "pintool", "nofnid", "", "Don't include function IDs in the trace");
@@ -64,6 +65,7 @@ KNOB<bool> srcRegOn(KNOB_MODE_WRITEONCE, "pintool", "srcreg", "", "Include an in
 KNOB<bool> memReadOn(KNOB_MODE_WRITEONCE, "pintool", "memread", "", "Include an instruction's memory reads in the trace");
 KNOB<bool> destRegOff(KNOB_MODE_WRITEONCE, "pintool", "nodestreg", "", "Don't include an instruction's destination registers in the trace");
 KNOB<bool> memWriteOff(KNOB_MODE_WRITEONCE, "pintool", "nomemwrite", "", "Don't include an instruction's memory writes in the trace");
+KNOB<bool> compressOff(KNOB_MODE_WRITEONCE, "pintool", "nocompress", "", "Don't use compression in the trace");
 
 /**
  * Function: pinFinish
@@ -334,6 +336,9 @@ void checkSelections() {
         infoSelect &= ~(1 << SEL_MEMWRITE);
         writeMemWrites = false;
     }
+	if(compressOff.Value()) {
+		doCompression = false;
+	}
 
     regsWritten = writeSrcRegs || writeDestRegs;
     memWritten = writeMemReads || writeMemWrites;
@@ -354,7 +359,7 @@ int main(int argc, char *argv[]) {
 
     checkSelections();
 
-    setupFile(infoSelect);
+    setupFile(infoSelect, doCompression);
     setupLocks();
 
     INS_AddInstrumentFunction(insInstrumentation, 0);

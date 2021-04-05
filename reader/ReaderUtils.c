@@ -35,9 +35,12 @@ void throwWarning(const char *msg) {
  * Description: Creates a buffer for reading the trace from the trace entry in the section table
  * Output: Buf for the trace section
  **/
-Buf *readTraceEntry(FILE *trace, SectionEntry * traceEntry) {
+Buf *readTraceEntry(FILE *trace, SectionEntry * traceEntry, int compress) {
     if (traceEntry->type == TRACE_SECTION) {
-        return createBuf(trace, traceEntry->offset, traceEntry->size);
+		if (compress)
+			return createBufCompress(trace, traceEntry->offset, traceEntry->size);
+		else
+			return createBuf(trace, traceEntry->offset, traceEntry->size);
     }
 
     return NULL;
@@ -48,9 +51,12 @@ Buf *readTraceEntry(FILE *trace, SectionEntry * traceEntry) {
  * Description: Creates a buffer for reading the data from the data entry in the section table
  * Output: Buf for the data section
  **/
-Buf *readDataEntry(FILE *trace, SectionEntry* dataEntry) {
+Buf *readDataEntry(FILE *trace, SectionEntry* dataEntry, int compress) {
     if (dataEntry->type == DATA_SECTION) {
-        return createBuf(trace, dataEntry->offset, dataEntry->size);
+		if (compress)
+			return createBufCompress(trace, dataEntry->offset, dataEntry->size);
+		else
+			return createBuf(trace, dataEntry->offset, dataEntry->size);
     }
     return NULL;
 }

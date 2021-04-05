@@ -33,8 +33,12 @@ typedef struct Buf_t {
 
 int reachedReadLimit(Buf *buf, uint8_t *pos);
 uint8_t *loadN(Buf *buf, uint8_t *pos, uint16_t n);
+uint8_t *loadNCompress(Buf *buf, uint8_t *pos, uint16_t n);
 Buf *createBuf(FILE *file, uint64_t filePos, uint64_t readLimit);
+Buf *createBufCompress(FILE *file, uint64_t filePos, uint64_t readLimit);
 uint64_t getBytesRemaining(Buf *buf, uint8_t *pos);
+uint64_t getBytesRemainingCompress(Buf *buf, uint8_t *pos);
 void freeBuf(Buf *buf);
+void freeBufCompress(Buf *buf);
 
 #endif
