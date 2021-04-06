@@ -25,7 +25,7 @@ typedef struct {
     uint32_t sectionTableOff;
     uint16_t sectionEntrySize;
     uint16_t sectionNumEntry;
-	int compress;
+    int compress;
 } FileHeader;
 
 typedef struct {

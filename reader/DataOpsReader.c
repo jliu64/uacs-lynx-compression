@@ -54,8 +54,8 @@ struct DataOpsState_t {
     // Function pointer that will get the "full register" (largest one that contains the requested one)
     //  for 32 and 64 bit architectures
     LynxReg (*LynxRegFull) (LynxReg reg);
-	// Whether the trace file is compressed or not
-	int compress;
+    // Whether the trace file is compressed or not
+    int compress;
 };
 
 uint32_t dataOpsStrTableSize(DataOpsState *state) {
@@ -84,11 +84,11 @@ void parseDataOpsData(DataOpsState *state, MemState *memState, RegState *regStat
     uint32_t curTID = state->predTID;
 
     uint8_t *dataPos;
-	if (state->compress)
-		dataPos = loadNCompress(dataBuf, state->dataPos, 1);
-	else
-		dataPos = loadN(dataBuf, state->dataPos, 1);
-    
+    if (state->compress)
+        dataPos = loadNCompress(dataBuf, state->dataPos, 1);
+    else
+        dataPos = loadN(dataBuf, state->dataPos, 1);
+
     if (dataPos == NULL) {
         return;
     }
@@ -103,10 +103,10 @@ void parseDataOpsData(DataOpsState *state, MemState *memState, RegState *regStat
         switch(opType = *dataPos) {
             case OP_REG: {
                 dataPos += 1;
-				if (state->compress)
-					dataPos = loadNCompress(dataBuf, dataPos, 5);
-				else
-					dataPos = loadN(dataBuf, dataPos, 5);
+                if (state->compress)
+                    dataPos = loadNCompress(dataBuf, dataPos, 5);
+                else
+                    dataPos = loadN(dataBuf, dataPos, 5);
                 if (dataPos == NULL) {
                     throwError("Data Section ended in the middle of data");
                 }
@@ -118,11 +118,11 @@ void parseDataOpsData(DataOpsState *state, MemState *memState, RegState *regStat
                 dataPos += 1;
 
                 size = archLynxRegSize(lReg);
-				
-				if (state->compress)
-					dataPos = loadNCompress(dataBuf, dataPos, size);
-				else
-					dataPos = loadN(dataBuf, dataPos, size);
+
+                if (state->compress)
+                    dataPos = loadNCompress(dataBuf, dataPos, size);
+                else
+                    dataPos = loadN(dataBuf, dataPos, size);
                 if (dataPos == NULL) {
                     throwError("Data Section ended in the middle of data");
                 }
@@ -134,10 +134,10 @@ void parseDataOpsData(DataOpsState *state, MemState *memState, RegState *regStat
             case OP_DST_MEM: 
             case OP_MEM: {
                 dataPos += 1;
-				if (state->compress)
-					dataPos = loadNCompress(dataBuf, dataPos, addrSize + 2);
-				else
-					dataPos = loadN(dataBuf, dataPos, addrSize + 2);
+                if (state->compress)
+                    dataPos = loadNCompress(dataBuf, dataPos, addrSize + 2);
+                else
+                    dataPos = loadN(dataBuf, dataPos, addrSize + 2);
                 if (dataPos == NULL) {
                     throwError("Data Section ended in the middle of data");
                 }
@@ -147,11 +147,11 @@ void parseDataOpsData(DataOpsState *state, MemState *memState, RegState *regStat
 
                 uint64_t memAddr = parseAddr(dataPos);
                 dataPos += addrSize;
-				
-				if (state->compress)
-					dataPos = loadNCompress(dataBuf, dataPos, size);
-				else
-					dataPos = loadN(dataBuf, dataPos, size);
+
+                if (state->compress)
+                    dataPos = loadNCompress(dataBuf, dataPos, size);
+                else
+                    dataPos = loadN(dataBuf, dataPos, size);
                 if (dataPos == NULL) {
                     throwError("Data Section ended in the middle of data");
                 }
@@ -166,10 +166,10 @@ void parseDataOpsData(DataOpsState *state, MemState *memState, RegState *regStat
             } 
             case OP_DST_REG: {
                 dataPos += 1;
-				if (state->compress)
-					dataPos = loadNCompress(dataBuf, dataPos, 5);
-				else
-					dataPos = loadN(dataBuf, dataPos, 5);
+                if (state->compress)
+                    dataPos = loadNCompress(dataBuf, dataPos, 5);
+                else
+                    dataPos = loadN(dataBuf, dataPos, 5);
                 if (dataPos == NULL) {
                     throwError("Data Section ended in the middle of data");
                 }
@@ -179,11 +179,11 @@ void parseDataOpsData(DataOpsState *state, MemState *memState, RegState *regStat
                 dataPos += 1;
 
                 size = archLynxRegSize(fullReg);
-				
-				if (state->compress)
-					dataPos = loadNCompress(dataBuf, dataPos, size);
-				else
-					dataPos = loadN(dataBuf, dataPos, size);
+
+                if (state->compress)
+                    dataPos = loadNCompress(dataBuf, dataPos, size);
+                else
+                    dataPos = loadN(dataBuf, dataPos, size);
                 if (dataPos == NULL) {
                     throwError("Data Section ended in the middle of data");
                 }
@@ -198,10 +198,10 @@ void parseDataOpsData(DataOpsState *state, MemState *memState, RegState *regStat
             } 
             case OP_TEST_REG: {
                 dataPos += 1;
-				if (state->compress)
-					dataPos = loadNCompress(dataBuf, dataPos, 5);
-				else
-					dataPos = loadN(dataBuf, dataPos, 5);
+                if (state->compress)
+                    dataPos = loadNCompress(dataBuf, dataPos, 5);
+                else
+                    dataPos = loadN(dataBuf, dataPos, 5);
                 if (dataPos == NULL) {
                     throwError("Data Section ended in the middle of data");
                 }
@@ -211,11 +211,11 @@ void parseDataOpsData(DataOpsState *state, MemState *memState, RegState *regStat
                 dataPos += 1;
 
                 size = archLynxRegSize(fullReg);
-				
-				if (state->compress)
-					dataPos = loadNCompress(dataBuf, dataPos, size);
-				else
-					dataPos = loadN(dataBuf, dataPos, size);
+
+                if (state->compress)
+                    dataPos = loadNCompress(dataBuf, dataPos, size);
+                else
+                    dataPos = loadN(dataBuf, dataPos, size);
                 if (dataPos == NULL) {
                     throwError("Data Section ended in the middle of data");
                 }
@@ -236,10 +236,10 @@ void parseDataOpsData(DataOpsState *state, MemState *memState, RegState *regStat
             } 
             case OP_TEST_MEM: {
                 dataPos += 1;
-				if (state->compress)
-					dataPos = loadNCompress(dataBuf, dataPos, addrSize + 2);
-				else
-					dataPos = loadN(dataBuf, dataPos, addrSize + 2);
+                if (state->compress)
+                    dataPos = loadNCompress(dataBuf, dataPos, addrSize + 2);
+                else
+                    dataPos = loadN(dataBuf, dataPos, addrSize + 2);
                 if (dataPos == NULL) {
                     throwError("Data Section ended in the middle of data");
                 }
@@ -249,11 +249,11 @@ void parseDataOpsData(DataOpsState *state, MemState *memState, RegState *regStat
 
                 uint64_t memAddr = parseAddr(dataPos);
                 dataPos += addrSize;
-				
-				if (state->compress)
-					dataPos = loadNCompress(dataBuf, dataPos, size);
-				else
-					dataPos = loadN(dataBuf, dataPos, size);
+
+                if (state->compress)
+                    dataPos = loadNCompress(dataBuf, dataPos, size);
+                else
+                    dataPos = loadN(dataBuf, dataPos, size);
                 if (dataPos == NULL) {
                     throwError("Data Section ended in the middle of data");
                 }
@@ -281,10 +281,10 @@ void parseDataOpsData(DataOpsState *state, MemState *memState, RegState *regStat
         }
 
         //try to get the next label, if we can't that's fine because we are at the beginning of new data
-		if (state->compress)
-			dataPos = loadNCompress(dataBuf, dataPos, 1);
-		else
-			dataPos = loadN(dataBuf, dataPos, 1);
+        if (state->compress)
+            dataPos = loadNCompress(dataBuf, dataPos, 1);
+        else
+            dataPos = loadN(dataBuf, dataPos, 1);
         if (dataPos == NULL) {
             state->dataPos = NULL;
             return;
@@ -294,10 +294,10 @@ void parseDataOpsData(DataOpsState *state, MemState *memState, RegState *regStat
     dataPos += 1;
 
     //we got a label, but no event id
-	if (state->compress)
-		dataPos = loadNCompress(dataBuf, dataPos, 8);
-	else
-		dataPos = loadN(dataBuf, dataPos, 8);
+    if (state->compress)
+        dataPos = loadNCompress(dataBuf, dataPos, 8);
+    else
+        dataPos = loadN(dataBuf, dataPos, 8);
     if (dataPos == NULL) {
         throwError("Data Section ended in the middle of data");
     } 
@@ -328,9 +328,7 @@ DataOpsState *initDataOps(FileHeader *fileHeader, SectionEntry * sectionTable, F
     state->strTable = NULL;
     state->selections = 0;
     state->numSkips = 0;
-	state->compress = fileHeader->compress;
-	
-	fprintf(stderr, "Compress: %d\n", state->compress);//DELETEME
+    state->compress = fileHeader->compress;
 
     TraceHeader traceHeader;
     InfoSelHeader infoSelHeader;
@@ -478,13 +476,13 @@ void setupDataOpsInitState(DataOpsState *state, MemState *memState, RegState *re
  * Output: None
  **/
 void freeDataOps(DataOpsState *state) {
-	if (state->compress) {
-		freeBufCompress(state->traceBuf);
-		freeBufCompress(state->dataBuf);
-	} else {
-		freeBuf(state->traceBuf);
-		freeBuf(state->dataBuf);
-	}
+    if (state->compress) {
+        freeBufCompress(state->traceBuf);
+        freeBufCompress(state->dataBuf);
+    } else {
+        freeBuf(state->traceBuf);
+        freeBuf(state->dataBuf);
+    }
     free(state->predictions);
     free(state->strTable);
     free(state);
@@ -691,24 +689,24 @@ uint32_t readDataOpsEvent(DataOpsState *state, MemState *memState, RegState *reg
 
     if (state->numSkips == 0) {
         uint8_t *tmpPos;
-		if (state->compress)
-			tmpPos = loadNCompress(traceBuf, tracePos, 38);
-		else
-			tmpPos = loadN(traceBuf, tracePos, 38);
+        if (state->compress)
+            tmpPos = loadNCompress(traceBuf, tracePos, 38);
+        else
+            tmpPos = loadN(traceBuf, tracePos, 38);
         if (tmpPos == NULL) {
 			uint64_t remaining;
-			if (state->compress)
-				remaining = getBytesRemainingCompress(traceBuf, tracePos);
-			else
-				remaining = getBytesRemaining(traceBuf, tracePos);
+            if (state->compress)
+                remaining = getBytesRemainingCompress(traceBuf, tracePos);
+            else
+                remaining = getBytesRemaining(traceBuf, tracePos);
             if (remaining == 0) {
                 return 0;
             }
             
-			if (state->compress)
-				tmpPos = loadNCompress(traceBuf, tracePos, remaining);
-			else
-				tmpPos = loadN(traceBuf, tracePos, remaining);
+            if (state->compress)
+                tmpPos = loadNCompress(traceBuf, tracePos, remaining);
+            else
+                tmpPos = loadN(traceBuf, tracePos, remaining);
         }
 
         tracePos = tmpPos;
@@ -738,10 +736,10 @@ uint32_t readDataOpsEvent(DataOpsState *state, MemState *memState, RegState *reg
     //we don't, the reader could mark that we have finished the trace prematurely for traces with
     //skips at the end
     if (state->numSkips == 0) {
-		if (state->compress)
-			tracePos = loadNCompress(traceBuf, tracePos, 1);
-		else
-			tracePos = loadN(traceBuf, tracePos, 1);
+        if (state->compress)
+            tracePos = loadNCompress(traceBuf, tracePos, 1);
+        else
+            tracePos = loadN(traceBuf, tracePos, 1);
         tracePos += 1;
     }
 

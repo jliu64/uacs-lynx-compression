@@ -336,9 +336,9 @@ void checkSelections() {
         infoSelect &= ~(1 << SEL_MEMWRITE);
         writeMemWrites = false;
     }
-	if(compressOff.Value()) {
-		doCompression = false;
-	}
+    if(compressOff.Value()) {
+        doCompression = false;
+    }
 
     regsWritten = writeSrcRegs || writeDestRegs;
     memWritten = writeMemReads || writeMemWrites;
