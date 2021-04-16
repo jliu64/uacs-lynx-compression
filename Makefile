@@ -1,4 +1,4 @@
-TARGETS = reader trace2ascii cfg taint slice tracer
+TARGETS = zlib reader trace2ascii cfg taint slice tracer
 
 .PHONY: all clean
 
@@ -11,6 +11,7 @@ ifndef XED_ROOT
 	$(info "please set XED_ROOT to point to the root of the xed disassembler")
 	$(info "aborting...")
 else
+	chdir zlib; CC="gcc -fPIC" ./configure --prefix=`pwd` --static; make test; make install 
 	make -C reader 
 	make -C trace2ascii 
 	make -C taint 
@@ -20,6 +21,7 @@ else
 endif
 
 clean : $(TARGETS)
+	cd zlib; make clean
 	cd reader; make realclean
 	cd trace2ascii ; make clean
 	cd cfg ; make realclean

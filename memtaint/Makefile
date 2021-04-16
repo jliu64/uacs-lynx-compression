@@ -5,13 +5,14 @@ DEST = memtaint
 
 TOOLDIR = ..
 
-INCLUDES = -I$(TOOLDIR)/reader \
+INCLUDES = -I$(TOOLDIR)/zlib/include \
+	-I$(TOOLDIR)/reader \
 	-I$(TOOLDIR)/taint \
 	-I$(TOOLDIR)/shared \
 	-I$(XED_ROOT)/include/public/xed \
 	-I$(XED_ROOT)/obj 
-LDFLAGS = -L$(TOOLDIR)/reader -L$(TOOLDIR)/taint -L$(XED_ROOT)/obj
-LIBS = -ltrd -ltaint -lxed 
+LDFLAGS = -L$(TOOLDIR)/zlib/lib -L$(TOOLDIR)/reader -L$(TOOLDIR)/taint -L$(XED_ROOT)/obj
+LIBS = -ltrd -ltaint -lxed -lz 
 
 CC = gcc
 CXX = g++

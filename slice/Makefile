@@ -7,13 +7,14 @@ TOOLDIR = ../
 
 CXX = g++
 
-INCLUDES = -I$(TOOLDIR)/reader \
+INCLUDES = -I$(TOOLDIR)/zlib/include \
+	-I$(TOOLDIR)/reader \
 	-I$(TOOLDIR)/shared \
 	-I$(XED_ROOT)/include/public/xed \
 	-I$(XED_ROOT)/obj -I$(TOOLDIR)/cfg \
 	-I$(TOOLDIR)/taint
-LDFLAGS = -L$(TOOLDIR)/reader -L$(XED_ROOT)/obj -L$(TOOLDIR)/cfg -L$(TOOLDIR)/taint
-LIBS = -lcfg -ltrd -lxed -ltaint
+LDFLAGS = -L$(TOOLDIR)/zlib/lib -L$(TOOLDIR)/reader -L$(XED_ROOT)/obj -L$(TOOLDIR)/cfg -L$(TOOLDIR)/taint
+LIBS = -Wl,--whole-archive -lz -Wl,--no-whole-archive -lcfg -ltrd -lxed -ltaint
 
 CXXFLAGS = -std=c++11 -Wall -g -DDEBUG -O2
 

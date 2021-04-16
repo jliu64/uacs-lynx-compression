@@ -5,8 +5,8 @@ XEDPATH = ../../xed
 
 CC = gcc
 
-IFLAGS = -I$(TOOLDIR)/reader -I$(TOOLDIR)/shared -I$(XEDPATH)/include/public/xed -I$(XEDPATH)/obj -I$(TOOLDIR)/cfg -I$(TOOLDIR)/taint
-LFLAGS = -L$(TOOLDIR)/reader -L$(XEDPATH)/obj -I$(TOOLDIR)/cfg -L$(TOOLDIR)/taint
+IFLAGS = -I$(TOOLDIR)/zlib/include -I$(TOOLDIR)/reader -I$(TOOLDIR)/shared -I$(XEDPATH)/include/public/xed -I$(XEDPATH)/obj -I$(TOOLDIR)/cfg -I$(TOOLDIR)/taint
+LFLAGS = -L$(TOOLDIR)/zlib/lib -L$(TOOLDIR)/reader -L$(XEDPATH)/obj -I$(TOOLDIR)/cfg -L$(TOOLDIR)/taint
 
 CFLAGS = -Wall -g -DDEBUG -fPIC
 HASH = 
@@ -17,19 +17,19 @@ CFILES = cfgAPI.c hashtable.c cfg.c controlTransfer.c block.c edge.c function.c 
 OFILES = $(CFILES:.c=.o)
 
 libcfg.so : $(OFILES)
-	$(CC) -shared $(CFLAGS) $(LFLAGS) -o $@ $^ -ltrd -lxed
+	$(CC) -shared $(CFLAGS) $(LFLAGS) -o $@ $^ -ltrd -lxed -lz
 
 %.o : %.c
 	$(CC) -c $(CFLAGS) $(IFLAGS) -o $@ $<
 
 cfg : cfgDriver.c
-	$(CC) -I. $(IFLAGS)  -g -Wall -o $@ $^ $(LFLAGS) -L. $(LFLAGS) -lcfg -ltrd -lxed
+	$(CC) -I. $(IFLAGS)  -g -Wall -o $@ $^ $(LFLAGS) -L. $(LFLAGS) -lcfg -ltrd -lxed -lz
 
 cfgRE : cfgRE.c
-	$(CC) -I. $(IFLAGS)  -g -Wall -o $@ $^ $(LFLAGS) -L. $(LFLAGS) -lcfg -ltrd -lxed
+	$(CC) -I. $(IFLAGS)  -g -Wall -o $@ $^ $(LFLAGS) -L. $(LFLAGS) -lcfg -ltrd -lxed -lz
 
 insCounter : insCounter.c
-	$(CC) -I. $(IFLAGS)  -g -Wall -o $@ $^ $(LFLAGS) -L. $(LFLAGS) -lcfg -ltrd -lxed
+	$(CC) -I. $(IFLAGS)  -g -Wall -o $@ $^ $(LFLAGS) -L. $(LFLAGS) -lcfg -ltrd -lxed -lz
 
 hashtable.o : hashtable.c hashtable.h cfg.h
 
