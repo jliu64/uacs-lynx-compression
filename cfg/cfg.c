@@ -518,12 +518,14 @@ void taintMemDestinations(cfgState *cfgStructArg, cfgInstruction *curInstruction
   // Get a new label to apply to all dest/sources
   uint64_t label = getNewLabel(cfgStructArg->taintState);
   InsInfo info;
+  int i;
+
   initInsInfo(&info);
   fetchInsInfo(cfgStructArg->readerState, &curInstruction->event.ins, &info);
 
   // Walk through read/write
   ReaderOp *op = info.readWriteOps;
-  for(int i = 0; i < info.readWriteOpCnt; i++){
+  for (i = 0; i < info.readWriteOpCnt; i++){
     // Look for mem ops
     if(op->type == MEM_OP){
       /*if(op->mem.size > 200){
@@ -536,9 +538,9 @@ void taintMemDestinations(cfgState *cfgStructArg, cfgInstruction *curInstruction
 
   // Walk through dstOps
   op = info.dstOps;
-  for(int i = 0; i < info.dstOpCnt; i++){
+  for (i = 0; i < info.dstOpCnt; i++){
     // Look for mem ops
-    if(op->type == MEM_OP){
+    if (op->type == MEM_OP){
       /*if(op->mem.size > 200){
         printf("Great: Ins %lx has mem size of %d\n", curInstruction->event.ins.addr, op->mem.size);
       }*/
