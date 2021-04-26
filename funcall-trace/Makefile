@@ -5,12 +5,13 @@ DEST = fncall_tracer
 
 TOOLDIR = ..
 
-INCLUDES = -I$(TOOLDIR)/reader \
+INCLUDES = -I$(TOOLDIR)/zlib/include \
+	-I$(TOOLDIR)/reader \
 	-I$(TOOLDIR)/shared \
 	-I$(XED_ROOT)/include/public/xed \
 	-I$(XED_ROOT)/obj 
-LDFLAGS = -L$(TOOLDIR)/reader -L$(XED_ROOT)/obj
-LIBS = -ltrd -lxed 
+LDFLAGS = -L$(TOOLDIR)/zlib/lib -L$(TOOLDIR)/reader -L$(XED_ROOT)/obj
+LIBS = -ltrd -lxed -lz 
 
 CC = gcc
 CFLAGS = -Wall -g -DDEBUG -O2

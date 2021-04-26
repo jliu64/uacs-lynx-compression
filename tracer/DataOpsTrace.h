@@ -37,7 +37,7 @@ void startTrace();
 VOID threadStart(THREADID threadid, CONTEXT *ctxt, INT32 flags, VOID *v);
 
 //handling the trace format
-void setupFile(UINT16 infoSelect);
+void setupFile(UINT16 infoSelect, bool compress);
 void endFile();
 
 extern StringTable strTable;

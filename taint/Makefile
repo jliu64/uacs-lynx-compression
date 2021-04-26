@@ -10,9 +10,9 @@ CXXFILES = LabelStore.cpp
 OFILES = $(CFILES:c=o) $(CXXFILES:cpp=o)
 CFLAGS = -Wall -g -c
 CXXFLAGS = -Wall -g -fpic -c -std=c++11
-INCLUDES = -I$(XED_ROOT)/obj -I$(XED_ROOT)/include/public/xed -I../shared -I../reader
-LDFLAGS = -shared -g -L$(XED_ROOT)/obj -L../reader
-LIBS = -lxed -ltrd
+INCLUDES = -I$(XED_ROOT)/obj -I$(XED_ROOT)/include/public/xed -I../shared -I../zlib/include -I../reader
+LDFLAGS = -shared -g -L$(XED_ROOT)/obj -L../zlib/lib -L../reader
+LIBS = -lxed -ltrd -lz 
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $<

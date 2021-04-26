@@ -16,6 +16,10 @@
 #include <cstdio>
 #include <iostream>
 
+//extern "C" {
+#include "zlib.h"
+//}
+
 using std::cout;
 using std::endl;
 
@@ -43,6 +47,14 @@ UINT8 *traceBufPos = traceBuf;
 UINT8 dataBuf[BUF_SIZE];
 UINT8 *dataBufPos = dataBuf;
 
+bool useCompression = true;
+
+int ret;
+unsigned have;
+z_stream trace_strm;
+z_stream data_strm;
+unsigned char out[BUF_SIZE];
+
 #if defined(TARGET_IA32)
 #pragma message("x86")
 #define fullLynxReg LynxReg2FullLynxIA32Reg
@@ -53,6 +65,15 @@ UINT8 *dataBufPos = dataBuf;
 #define lynxRegSize LynxRegSize
 #else
 #error "Unsupported Architecture"
+#endif
+
+// Prevent corruption on Windows/MS-DOS systems when using zlib
+#if defined(MSDOS) || defined(OS2) || defined(WIN32) || defined(__CYGWIN__)
+#  include <fcntl.h>
+#  include <io.h>
+#  define SET_BINARY_MODE(file) setmode(fileno(file), O_BINARY)
+#else
+#  define SET_BINARY_MODE(file)
 #endif
 
 //thread local storage structure (for those unfamiliar with C++ structs, they are essentially classes with different privacy rules so you can have functions)
@@ -86,7 +107,7 @@ ThreadData tls[maxThreads];
 /**
  * Function: getFileBuf
  * Description: Get a buffer for the file that is guaranteed to fit the given size. Must provide the file's
- *  buffer and the current position in that buffer. 
+ *  buffer and the current position in that buffer. This version of the function doesn't use compression.
  * Side Effects: Writes to file if there is not enough space in buffer
  * Output: the position in the buffer that it is safe to write to
  **/
@@ -100,11 +121,70 @@ UINT8 *getFileBuf(UINT32 size, UINT8 *fileBuf, UINT8 *curFilePos, FILE *file) {
     return curFilePos;
 }
 
+/**
+ * Function: getFileBufCompress
+ * Description: Get a buffer for the file that is guaranteed to fit the given size. Must provide the file's
+ *  buffer and the current position in that buffer. Section denotes whether the buffer is for the trace section
+ *  or the data section; trace is 0, data is 1. This version of the function implements data compression.
+ * Side Effects: Writes to file if there is not enough space in buffer
+ * Output: the position in the buffer that it is safe to write to
+ **/
+UINT8 *getFileBufCompress(UINT32 size, UINT8 *fileBuf, UINT8 *curFilePos, FILE *file, int section) {
+    UINT16 bufSize = curFilePos - fileBuf;
+    if((bufSize + size) > BUF_SIZE) {
+        if (section) {
+            data_strm.avail_in = bufSize;
+            data_strm.next_in = fileBuf;
+
+            do {
+                data_strm.avail_out = BUF_SIZE;
+                data_strm.next_out = out;
+                ret = deflate(&data_strm, Z_NO_FLUSH);
+                assert(ret != Z_STREAM_ERROR);
+                have = BUF_SIZE - data_strm.avail_out;
+                if (fwrite(out, 1, have, file) != have || ferror(file)) {
+                    (void)deflateEnd(&data_strm);
+                    fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+                    exit(1);
+                }
+            } while (data_strm.avail_out == 0);
+            assert(data_strm.avail_in == 0); // Check that we wrote bufSize bytes from fileBuf
+            //(void)deflateEnd(&data_strm);
+
+            //fwrite(fileBuf, UINT8_SIZE, bufSize, file);
+            curFilePos = fileBuf;
+        } else {
+            trace_strm.avail_in = bufSize;
+            trace_strm.next_in = fileBuf;
+
+            do {
+                trace_strm.avail_out = BUF_SIZE;
+                trace_strm.next_out = out;
+                ret = deflate(&trace_strm, Z_NO_FLUSH);
+                assert(ret != Z_STREAM_ERROR);
+                have = BUF_SIZE - trace_strm.avail_out;
+                if (fwrite(out, 1, have, file) != have || ferror(file)) {
+                    (void)deflateEnd(&trace_strm);
+                    fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+                    exit(1);
+                }
+            } while (trace_strm.avail_out == 0);
+            assert(trace_strm.avail_in == 0); // Check that we wrote bufSize bytes from fileBuf
+            //(void)deflateEnd(&trace_strm);
+
+            //fwrite(fileBuf, UINT8_SIZE, bufSize, file);
+            curFilePos = fileBuf;
+        }
+    }
+
+    return curFilePos;
+}
+
 /** 
  * Function: writeToFile
  * Description: The wrapper to fwrite essentially. It ensures that we write large blocks of data to a 
  *  file at once. It places information into the file buffer and, if full, flushes the buffer to the file
- *  when full.
+ *  when full. This version of the function doesn't use compression.
  * Output: the new current position in the buffer.
  **/
 UINT8 *writeToFile(UINT8 *buf, UINT8 *endPos, UINT8 *fileBuf, UINT8 *curFilePos, FILE *file) {
@@ -124,6 +204,114 @@ UINT8 *writeToFile(UINT8 *buf, UINT8 *endPos, UINT8 *fileBuf, UINT8 *curFilePos,
     for(; curPos < endPos; curPos++) {
         if((bufSize + UINT8_SIZE) > BUF_SIZE) {
             fwrite(fileBuf, UINT8_SIZE, bufSize, file);
+            bufSize = 0;
+            curFilePos = fileBuf;
+        }
+        *curFilePos = *curPos;
+        curFilePos += UINT8_SIZE;
+        bufSize += UINT8_SIZE;
+    }
+
+    return curFilePos;
+}
+
+/** 
+ * Function: writeToFileCompress
+ * Description: The wrapper to fwrite essentially. It ensures that we write large blocks of data to a 
+ *  file at once. It places information into the file buffer and, if full, flushes the buffer to the file
+ *  when full. Section denotes whether the buffer is for the trace section or the data section; trace is 0,
+ *  data is 1. This version of the function uses compression.
+ * Output: the new current position in the buffer.
+ **/
+UINT8 *writeToFileCompress(UINT8 *buf, UINT8 *endPos, UINT8 *fileBuf, UINT8 *curFilePos, FILE *file, int section) {
+    UINT16 bufSize = curFilePos - fileBuf;
+    UINT8 *curPos;
+    for(curPos = buf; (curPos + UINT64_SIZE) <= endPos; curPos += UINT64_SIZE) {
+        if((bufSize + UINT64_SIZE) > BUF_SIZE) {
+            if (section) {
+                data_strm.avail_in = bufSize;
+                data_strm.next_in = fileBuf;
+
+                do {
+                    data_strm.avail_out = BUF_SIZE;
+                    data_strm.next_out = out;
+                    ret = deflate(&data_strm, Z_NO_FLUSH);
+                    assert(ret != Z_STREAM_ERROR);
+                    have = BUF_SIZE - data_strm.avail_out;
+                    if (fwrite(out, 1, have, file) != have || ferror(file)) {
+                        (void)deflateEnd(&data_strm);
+                        fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+                        exit(1);
+                    }
+                } while (data_strm.avail_out == 0);
+                assert(data_strm.avail_in == 0); // Check that we wrote bufSize bytes from fileBuf
+            } else {
+                trace_strm.avail_in = bufSize;
+                trace_strm.next_in = fileBuf;
+
+                do {
+                    trace_strm.avail_out = BUF_SIZE;
+                    trace_strm.next_out = out;
+                    ret = deflate(&trace_strm, Z_NO_FLUSH);
+                    assert(ret != Z_STREAM_ERROR);
+                    have = BUF_SIZE - trace_strm.avail_out;
+                    if (fwrite(out, 1, have, file) != have || ferror(file)) {
+                        (void)deflateEnd(&trace_strm);
+                        fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+                        exit(1);
+                    }
+                } while (trace_strm.avail_out == 0);
+                assert(trace_strm.avail_in == 0); // Check that we wrote bufSize bytes from fileBuf
+            }
+
+            //fwrite(fileBuf, UINT8_SIZE, bufSize, file);
+            bufSize = 0;
+            curFilePos = fileBuf;
+        }
+        *((UINT64 *)curFilePos) = *((UINT64 *) curPos);
+        curFilePos += UINT64_SIZE;
+        bufSize += UINT64_SIZE;
+    }
+
+    for(; curPos < endPos; curPos++) {
+        if((bufSize + UINT8_SIZE) > BUF_SIZE) {
+            if (section) {
+                data_strm.avail_in = bufSize;
+                data_strm.next_in = fileBuf;
+
+                do {
+                    data_strm.avail_out = BUF_SIZE;
+                    data_strm.next_out = out;
+                    ret = deflate(&data_strm, Z_NO_FLUSH);
+                    assert(ret != Z_STREAM_ERROR);
+                    have = BUF_SIZE - data_strm.avail_out;
+                    if (fwrite(out, 1, have, file) != have || ferror(file)) {
+                        (void)deflateEnd(&data_strm);
+                        fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+                        exit(1);
+                    }
+                } while (data_strm.avail_out == 0);
+                assert(data_strm.avail_in == 0); // Check that we wrote bufSize bytes from fileBuf
+            } else {
+                trace_strm.avail_in = bufSize;
+                trace_strm.next_in = fileBuf;
+
+                do {
+                    trace_strm.avail_out = BUF_SIZE;
+                    trace_strm.next_out = out;
+                    ret = deflate(&trace_strm, Z_NO_FLUSH);
+                    assert(ret != Z_STREAM_ERROR);
+                    have = BUF_SIZE - trace_strm.avail_out;
+                    if (fwrite(out, 1, have, file) != have || ferror(file)) {
+                        (void)deflateEnd(&trace_strm);
+                        fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+                        exit(1);
+                    }
+                } while (trace_strm.avail_out == 0);
+                assert(trace_strm.avail_in == 0); // Check that we wrote bufSize bytes from fileBuf
+            }
+
+            //fwrite(fileBuf, UINT8_SIZE, bufSize, file);
             bufSize = 0;
             curFilePos = fileBuf;
         }
@@ -332,7 +520,11 @@ void checkMemRead(THREADID tid, ADDRINT readAddr, UINT32 readSize) {
 
     mem.loadSeen(readAddr, readSize, seenBits);
     //UINT8 buf[4096];
-    UINT8 *buf = getFileBuf(MAX_MEM_OP_SIZE + UINT8_SIZE + UINT16_SIZE + ADDRINT_SIZE, dataBuf, dataBufPos, dataFile);
+    UINT8 *buf;
+    if (useCompression)
+        buf = getFileBufCompress(MAX_MEM_OP_SIZE + UINT8_SIZE + UINT16_SIZE + ADDRINT_SIZE, dataBuf, dataBufPos, dataFile, 1);
+    else
+        buf = getFileBuf(MAX_MEM_OP_SIZE + UINT8_SIZE + UINT16_SIZE + ADDRINT_SIZE, dataBuf, dataBufPos, dataFile);
     UINT8 *sizePos = NULL;
     UINT8 *pos = buf;
 
@@ -442,7 +634,10 @@ void printAndReset(THREADID tid, const CONTEXT *ctx) {
         bool labeled = printIns(tid, ctx);
         PIN_MutexLock(&dataLock);
         if(!labeled) {
-            dataBufPos = getFileBuf(32, dataBuf, dataBufPos, dataFile);
+            if (useCompression)
+                dataBufPos = getFileBufCompress(32, dataBuf, dataBufPos, dataFile, 1);
+            else
+                dataBufPos = getFileBuf(32, dataBuf, dataBufPos, dataFile);
             dataBufPos = printDataLabel(dataBufPos, tls[tid].eventId);
         }
         mem.reset();
@@ -683,15 +878,24 @@ bool printIns(THREADID tid, const CONTEXT *ctx) {
         //don't include numSkipped in count, so add uint8 not uint16
         *((UINT16 *) data.pos) = data.pos - data.buffer + UINT8_SIZE;
         data.pos += UINT16_SIZE;
-
-        traceBufPos = writeToFile(data.buffer, data.pos, traceBuf, traceBufPos, traceFile);
+		
+        if (useCompression)
+            traceBufPos = writeToFileCompress(data.buffer, data.pos, traceBuf, traceBufPos, traceFile, 0);
+        else
+            traceBufPos = writeToFile(data.buffer, data.pos, traceBuf, traceBufPos, traceFile);
     }
     if(data.dataPos != data.dataBuffer) {
         labeled = true;
         PIN_MutexLock(&dataLock);
-        dataBufPos = getFileBuf(32, dataBuf, dataBufPos, dataFile);
+        if (useCompression)
+            dataBufPos = getFileBufCompress(32, dataBuf, dataBufPos, dataFile, 1);
+        else
+            dataBufPos = getFileBuf(32, dataBuf, dataBufPos, dataFile);
         dataBufPos = printDataLabel(dataBufPos, data.eventId);
-        dataBufPos = writeToFile(data.dataBuffer, data.dataPos, dataBuf, dataBufPos, dataFile);
+        if (useCompression)
+            dataBufPos = writeToFileCompress(data.dataBuffer, data.dataPos, dataBuf, dataBufPos, dataFile, 1);
+        else
+            dataBufPos = writeToFile(data.dataBuffer, data.dataPos, dataBuf, dataBufPos, dataFile);
         PIN_MutexUnlock(&dataLock);
     }
 
@@ -715,7 +919,10 @@ void contextChange(THREADID tid, CONTEXT_CHANGE_REASON reason, const CONTEXT *fr
         //check to see if an exception occurred. If so, print out info about it
         if(reason == CONTEXT_CHANGE_REASON_FATALSIGNAL || reason == CONTEXT_CHANGE_REASON_SIGNAL) {
             PIN_MutexLock(&traceLock);
-            traceBufPos = getFileBuf(32, traceBuf, traceBufPos, traceFile);
+            if (useCompression)
+                traceBufPos = getFileBufCompress(32, traceBuf, traceBufPos, traceFile, 0);
+            else
+                traceBufPos = getFileBuf(32, traceBuf, traceBufPos, traceFile);
             *traceBufPos = numSkipped;
             traceBufPos += 1;
             traceBufPos = printExceptionEvent(traceBufPos, LINUX_SIGNAL, info, tid, PIN_GetContextReg(fromCtx, REG_INST_PTR));
@@ -724,7 +931,10 @@ void contextChange(THREADID tid, CONTEXT_CHANGE_REASON reason, const CONTEXT *fr
         }
         else if(reason == CONTEXT_CHANGE_REASON_EXCEPTION) {
             PIN_MutexLock(&traceLock);
-            traceBufPos = getFileBuf(32, traceBuf, traceBufPos, traceFile);
+            if (useCompression)
+                traceBufPos = getFileBufCompress(32, traceBuf, traceBufPos, traceFile, 0);
+            else
+                traceBufPos = getFileBuf(32, traceBuf, traceBufPos, traceFile);
             *traceBufPos = numSkipped;
             traceBufPos += 1;
             traceBufPos = printExceptionEvent(traceBufPos, WINDOWS_EXCEPTION, info, tid, PIN_GetContextReg(fromCtx, REG_INST_PTR));
@@ -745,7 +955,11 @@ void contextChange(THREADID tid, CONTEXT_CHANGE_REASON reason, const CONTEXT *fr
  **/
 void recordRegState(THREADID tid, const CONTEXT *ctxt) {
     UINT8 val[LARGEST_REG_SIZE];
-    UINT8 *pos = getFileBuf(4096, dataBuf, dataBufPos, dataFile);
+    UINT8 *pos;
+    if (useCompression)
+        pos = getFileBufCompress(4096, dataBuf, dataBufPos, dataFile, 1);
+    else
+        pos = getFileBuf(4096, dataBuf, dataBufPos, dataFile);
 
 #if defined(TARGET_MIC) || defined(TARGET_IA32E)
     for(UINT32 lReg = LYNX_GR64_FIRST; lReg <= LYNX_GR64_LAST; lReg++) {
@@ -837,12 +1051,15 @@ VOID threadStart(THREADID tid, CONTEXT *ctxt, INT32 flags, void *v) {
  *  trace.out according to the Data Ops trace file format.
  * Output: None
  */
-void setupFile(UINT16 infoSelect) {
+void setupFile(UINT16 infoSelect, bool compress) {
+    useCompression = compress;
+
     traceFile = fopen("trace.out", "wb");
     dataFile = fopen("data.out", "w+b");
     errorFile = fopen("errors.out", "w");
 
     FileHeader h;
+    h.compress = (int) compress;
     h.ident[0] = 'U';
     h.ident[1] = 'A';
     h.ident[2] = 'T';
@@ -881,7 +1098,10 @@ void setupFile(UINT16 infoSelect) {
     h.sectionEntrySize = sectionSize;
 
 
-    fwrite(&h, sizeof(FileHeader), 1, traceFile);
+    if (fwrite(&h, sizeof(FileHeader), 1, traceFile) != 1) {
+        fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+        exit(1);
+    }
 
     SectionEntry entries[h.sectionNumEntry];
 
@@ -910,14 +1130,44 @@ void setupFile(UINT16 infoSelect) {
 
     //entries[5].offest = 
 
-    fwrite(entries, sectionSize, h.sectionNumEntry, traceFile);
+    if (fwrite(entries, sectionSize, h.sectionNumEntry, traceFile) != h.sectionNumEntry) {
+        fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+        exit(1);
+    }
 
     TraceHeader traceHeader;
-    fwrite(&traceHeader, sizeof(TraceHeader), 1, traceFile);
+    if (fwrite(&traceHeader, sizeof(TraceHeader), 1, traceFile) != 1) {
+        fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+        exit(1);
+    }
 
     InfoSelHeader infoSelHeader;
     infoSelHeader.selections = infoSelect;
-    fwrite(&infoSelHeader, sizeof(InfoSelHeader), 1, traceFile);
+    if (fwrite(&infoSelHeader, sizeof(InfoSelHeader), 1, traceFile) != 1) {
+        fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+        exit(1);
+    }
+	
+	// allocate deflate state
+    if (compress) {
+        trace_strm.zalloc = Z_NULL;
+        trace_strm.zfree = Z_NULL;
+        trace_strm.opaque = Z_NULL;
+        ret = deflateInit(&trace_strm, Z_DEFAULT_COMPRESSION);
+        if (ret != Z_OK) {
+            fprintf(stderr, "ERROR: zlib deflate initialization failed\n");
+            exit(1);
+        }
+
+        data_strm.zalloc = Z_NULL;
+        data_strm.zfree = Z_NULL;
+        data_strm.opaque = Z_NULL;
+        ret = deflateInit(&data_strm, Z_DEFAULT_COMPRESSION);
+        if (ret != Z_OK) {
+            fprintf(stderr, "ERROR: zlib deflate initialization failed\n");
+            exit(1);
+        }
+    }
 }
 
 /**
@@ -929,12 +1179,56 @@ void setupFile(UINT16 infoSelect) {
  * Output: None
  **/
 void endFile() {
-    fwrite(traceBuf, 1, traceBufPos - traceBuf, traceFile);
-    fwrite(&numSkipped, 1, 1, traceFile);
+    if (useCompression) {
+        trace_strm.avail_in = traceBufPos - traceBuf;
+        trace_strm.next_in = traceBuf;
+
+        do {
+            trace_strm.avail_out = BUF_SIZE;
+            trace_strm.next_out = out;
+            ret = deflate(&trace_strm, Z_NO_FLUSH);
+            assert(ret != Z_STREAM_ERROR);
+            have = BUF_SIZE - trace_strm.avail_out;
+            if (fwrite(out, 1, have, traceFile) != have || ferror(traceFile)) {
+                (void)deflateEnd(&trace_strm);
+                fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+                exit(1);
+            }
+        } while (trace_strm.avail_out == 0);
+        assert(trace_strm.avail_in == 0); // Check that we wrote all of traceBuf
+
+        trace_strm.avail_in = 1;
+        unsigned char numSkippedChar = (unsigned char) numSkipped;
+        trace_strm.next_in = &numSkippedChar;
+        trace_strm.avail_out = BUF_SIZE;
+        trace_strm.next_out = out;
+        ret = deflate(&trace_strm, Z_FINISH);
+        assert(ret != Z_STREAM_ERROR);
+        have = BUF_SIZE - trace_strm.avail_out;
+        if (fwrite(out, 1, have, traceFile) != have || ferror(traceFile)) {
+            (void)deflateEnd(&trace_strm);
+            fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+            exit(1);
+        }
+        assert(trace_strm.avail_in == 0); // Check that we wrote all of numSkipped
+        assert(ret == Z_STREAM_END); // Check that the compression stream ended correctly
+        int deflateRet = deflateEnd(&trace_strm);
+        assert (deflateRet == Z_OK);
+    } else {
+        if (fwrite(traceBuf, 1, traceBufPos - traceBuf, traceFile) != (size_t) (traceBufPos - traceBuf)) {
+            fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+            exit(1);
+        }
+        if (fwrite(&numSkipped, 1, 1, traceFile) != 1) {
+            fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+            exit(1);
+        }
+    }
+
     UINT64 tracePos = ftell(traceFile);
 
     UINT64 traceSize = tracePos - traceStart;
-    UINT64 dataSize = ftell(dataFile) + dataBufPos - dataBuf;
+    UINT64 dataSize;
 
     const int BUFSIZE = 4096;
     UINT8 buf[BUFSIZE];
@@ -944,10 +1238,43 @@ void endFile() {
 
     int amtRead;
     while((amtRead = fread(buf, 1, BUFSIZE, dataFile))) {
-        fwrite(buf, amtRead, 1, traceFile);
+        if (fwrite(buf, amtRead, 1, traceFile) != 1) {
+            fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+            exit(1);
+        }
     }
 
-    fwrite(dataBuf, 1, dataBufPos - dataBuf, traceFile);
+    if (useCompression) {
+        // datafile already compressed, but remaining data in dataBuf needs to be compressed
+        data_strm.avail_in = dataBufPos - dataBuf;
+        data_strm.next_in = dataBuf;
+        int dataWritten = 0; // The total amount of remaining data written
+        do {
+            data_strm.avail_out = BUF_SIZE;
+            data_strm.next_out = out;
+            ret = deflate(&data_strm, Z_FINISH);
+            assert(ret != Z_STREAM_ERROR);
+            have = BUF_SIZE - data_strm.avail_out;
+            dataWritten += have;
+            if (fwrite(out, 1, have, traceFile) != have || ferror(traceFile)) {
+                (void)deflateEnd(&data_strm);
+                fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+                exit(1);
+            }
+        } while (data_strm.avail_out == 0 || ret != Z_STREAM_END);
+        assert(data_strm.avail_in == 0); // Check that we wrote all of dataBuf
+        assert(ret == Z_STREAM_END); // Check that the compression stream ended correctly
+        int deflateRet = deflateEnd(&data_strm);
+        assert (deflateRet == Z_OK);
+
+        dataSize = ftell(dataFile) + dataWritten;
+    } else {
+        dataSize = ftell(dataFile) + dataBufPos - dataBuf;
+        if (fwrite(dataBuf, 1, dataBufPos - dataBuf, traceFile) != (size_t) (dataBufPos - dataBuf)) {
+            fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+            exit(1);
+        }
+    }
 
     strTable.dumpTable(traceFile);
     UINT64 strPos = tracePos + dataSize;
@@ -958,18 +1285,36 @@ void endFile() {
     UINT64 segmentSize = sizeof(SegmentLoad) * numSegments;*/
 
     fseek(traceFile, sectionOff + sizeof(SectionEntry) - UINT64_SIZE, SEEK_SET);
-    fwrite(&traceSize, sizeof(traceSize), 1, traceFile);
+    if (fwrite(&traceSize, sizeof(traceSize), 1, traceFile) != 1) {
+        fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+        exit(1);
+    }
     fseek(traceFile, sectionOff + 2 * sizeof(SectionEntry) - 2 * UINT64_SIZE, SEEK_SET);
-    fwrite(&tracePos, sizeof(tracePos), 1, traceFile);
-    fwrite(&dataSize, sizeof(dataSize), 1, traceFile);
+    if (fwrite(&tracePos, sizeof(tracePos), 1, traceFile) != 1) {
+        fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+        exit(1);
+    }
+    if (fwrite(&dataSize, sizeof(dataSize), 1, traceFile) != 1) {
+        fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+        exit(1);
+    }
     fseek(traceFile, sectionOff + 4 * sizeof(SectionEntry) - 2 * UINT64_SIZE, SEEK_SET);
-    fwrite(&strPos, sizeof(strPos), 1, traceFile);
-    fwrite(&strSize, sizeof(strSize), 1, traceFile);
+    if (fwrite(&strPos, sizeof(strPos), 1, traceFile) != 1) {
+        fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+        exit(1);
+    }
+    if (fwrite(&strSize, sizeof(strSize), 1, traceFile) != 1) {
+        fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+        exit(1);
+    }
     /*fseek(traceFile, sectionOff + 5 * sizeof(SectionEntry) - 2 * UINT64_SIZE, SEEK_SET);
     fwrite(&segmentPos, sizeof(segmentPos), 1, traceFile);
     fwrite(&segmentSize, sizeof(segmentSize), 1, traceFile);*/
     fseek(traceFile, traceHeaderOff, SEEK_SET);
-    fwrite(&numThreads, UINT32_SIZE, 1, traceFile);
+    if (fwrite(&numThreads, UINT32_SIZE, 1, traceFile) != 1) {
+        fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+        exit(1);
+    }
 
     fclose(dataFile);
     fclose(traceFile);

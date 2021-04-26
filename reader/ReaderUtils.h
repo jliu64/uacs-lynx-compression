@@ -29,8 +29,8 @@ void throwWarning(const char *msg);
 /*****************************
  * Section Table Parsing
  *****************************/
-Buf *readTraceEntry(FILE *trace, SectionEntry *traceEntry);
-Buf *readDataEntry(FILE *trace, SectionEntry *dataEntry);
+Buf *readTraceEntry(FILE *trace, SectionEntry *traceEntry, int compress);
+Buf *readDataEntry(FILE *trace, SectionEntry *dataEntry, int compress);
 char *readStrTableEntry(FILE *trace, SectionEntry *strTableEntry);
 int readTraceHeaderEntry(FILE *trace, SectionEntry *traceHeaderEntry, TraceHeader *traceHeader);
 int readInfoSelHeaderEntry(FILE *trace, SectionEntry *infoSelHeaderEntry, InfoSelHeader *infoSelHeader); 
