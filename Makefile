@@ -11,7 +11,7 @@ ifndef XED_ROOT
 	$(info "please set XED_ROOT to point to the root of the xed disassembler")
 	$(info "aborting...")
 else
-	chdir zlib; CC="gcc -fPIC" bash configure --prefix=`pwd` --static; make test; make install 
+	chdir zlib; sh ./configure --prefix=`pwd` --static; make test; make install 
 	make -C reader 
 	make -C trace2ascii 
 	make -C taint 
