@@ -194,7 +194,9 @@ The following code shows how the destination operands of an instruction may be a
   }
 ```
 
-The handling of source and read-write operands is similar.
+The handling of source and read-write operands is similar:
+* The source operands can be accessed using `info->srcOps` and the number of source operands is given by `info->srcOpCnt`.
+* The read-write operands can be accessed using `info->readWtriteOps` and the number of read-write operands is given by `info->readWriteOpcnt`.
 
 #### Operand types
 The type of an operand `op` is given by `op.type`.  Its possible values are given by
@@ -229,14 +231,24 @@ typedef struct ReaderOp_t {
 #### Operand values
 Given a reader state `r_state` and an instruction with thread-id `tid`, the value of an operand `op` for the instruction can be obtained as follows:
 
-- **Register operands:** `op` is a register operand if `op.type == REG_OP`; in this case, the register is given by `op.reg`.  Suppose that this register is *r*, then the value of the register can be obtained using
+- **Register operands:** `op` is a register operand if `op.type == REG_OP`.  In this case, the register is given by `op.reg`.  Suppose that this register is *r*, then the value of the register can be obtained using
 
   <code>getRegisterVal(r_state, *r*, tid)</code>.
   
   Note that the function `getRegisterVal()` returns a pointer to a base-16 string representation of the value of the register. If desired, this string can be converted to a binary value using `strtoul`.
-- **Memory operands:** `op` is a memory operand if `op.type == MEM_OP`; in this case, the address and size (no. of bytes) of the memory locations referenced are given by `op.mem.addr` and `op.mem.size` respectively.  The contents of this memory region can be obtained into a buffer `buf` of appropriate size using
+- **Memory operands:** `op` is a memory operand if `op.type == MEM_OP`. In this case, information about the operand is stored in a `ReaderMemOp` structure `op.mem` (see the file `Reader.h`).  This includes:
+    * *Registers used by the operand*: These are given by `op.mem.seg` (segment register),
+`op.mem.base` (base register), and `op.mem.index` (index register).  For each of these fields, a value of `LYNX_INVALID` indicates that the operand does not use a register in that role; otherwise, the register is given as a value of type `LynxReg` (defined in the file (`shared/LynxReg.h`).
+    * *Scaling*: The scale factor used by a memory operand is given by `op.mem.scale`.
+    * *Address accessed*: This is given by `op.mem.addr`.
+    * *Size* (no. of bytes) of the memory locations referenced: This is given by `op.mem.size`.  The contents of this memory region can be obtained into a buffer `buf` of appropriate size using
 
-  `getMemoryVal(r_state, op.mem.addr, op.mem.size, buf);`
+        `getMemoryVal(r_state, op.mem.addr, op.mem.size, buf);`
 
 - **Immediate operands:** The 64-bit value of a signed immediate operand can be obtained as `op.signedImm`.  The 64-bit value of an unsigned immediate operand can be obtained as `op.unsignedImm`.
+
+#### Information about registers
+Information about a register *r* of type `LynxReg` can be obtained as follows:
+* *Size* (in bytes): This is given by <code>LynxRegSize(*r*)</code>.
+* *Name* (a string): This is given by <code>LynxReg2Str(*r*)</code>.
 
