@@ -1,6 +1,6 @@
 # Using the Trace Reader: A Tutorial
 
-This document provides a high-level introduction to the trace reader.  It is not intended to be a detailed and exhaustive exposition of the trace reader API; for this, please see the README file and the source code.
+This document provides a high-level introduction to the trace reader.  It is not intended to be a detailed and exhaustive exposition of the trace reader API; for this, please see [API.md](API.md) and the source code.
 
 ## Accessing the trace reader
 Accessing the trace reader requires the following:
@@ -28,7 +28,7 @@ Let `TOOLDIR` be the path to the directory containing the `reader` directory (i.
   ```
 
 - **Dynamic loader search path:** Set the variable `LD_LIBRARY_PATH` as follows:
-    - `LD_LIBRARY_PATH` should include the directory `XEDPATH/obj`;
+    - `LD_LIBRARY_PATH` should include the directory `$(XEDPATH)/obj`;
     - if the reader is built as a dynamically linked library, i.e., as a `*.so` file, then `LD_LIBRARY_PATH` should also include the directory `TOOLDIR/reader` (the default build process for the reader builds it as a statically shared library, i.e., as a `*.a` file, and it is not necessary to have the path to the reader in `LD_LIBRARY_PATH`).
 
 Given the above, a makefile for a client application that uses the trace reader might look something like the following:
