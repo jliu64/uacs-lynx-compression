@@ -1200,6 +1200,7 @@ void endFile() {
         trace_strm.avail_in = 1;
         unsigned char numSkippedChar = (unsigned char) numSkipped;
         trace_strm.next_in = &numSkippedChar;
+      
         do {
             trace_strm.avail_out = BUF_SIZE;
             trace_strm.next_out = out;
@@ -1212,6 +1213,7 @@ void endFile() {
                 exit(1);
             }
         } while (trace_strm.avail_out == 0 || ret != Z_STREAM_END);
+      
         assert(trace_strm.avail_in == 0); // Check that we wrote all of numSkipped
         assert(ret == Z_STREAM_END); // Check that the compression stream ended correctly
         int deflateRet = deflateEnd(&trace_strm);
