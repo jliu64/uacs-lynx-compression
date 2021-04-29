@@ -154,22 +154,26 @@ The `InsInfo` data structure is not updated automatically when `nextEvent()` is 
 - **Update**:
   `int fetchInsInfo(ReaderState *state, ReaderIns *ins, InsInfo *info)`
 
-Given an instruction **_I_** with `InsInfo` structure `i_insinfo` and `ReaderIns` structure `i_readerins`, 
+Given an instruction *I* with `InsInfo` structure `i_insinfo` and `ReaderIns` structure `i_readerins`, 
 some commonly accessed properties of _I_ can be accessed as follows:
-* **The memory address at which _I_ is located.**  `uint64_t i_readerins.addr`.
-* **_I_'s size** (in bytes).  `uint8_t i_readerins.binSize`.
-* **_I_'s binary encoding** (i.e., the actual bytes of the instruction). `uint8_t i_readerins.binary[15]`.
-* **_I_'s thread id.** `uint32_t i_readerins.tid`.
-* **The assembly code representation for _I_**. `char i_insinfo.mnemonic[128]`.
-* **The type of instruction _I_** 9e.g., MOVE, CALL, etc.)  `xed_iclass_enum_t i_insinfo.insClass`. The values of this enumerated type are defined in the file `$XED_ROOT/obj/xed-iclass-enum.h` (see [../README.md](../README.md) for more information about `XED_ROOT`).
-* **The number of source operands.** `uint8_t i_insinfo.srcOpCnt`.
-* **_I_'s source operands**.  `ReaderOp i_insinfo.srcOps[3]`.
-* **The number of destination operands.** `uint8_t i_insinfo.dstOpCnt`.
-* **_I_'s destination operands**.  `ReaderOp i_insinfo.dstOps[3]`.
-* **The number of read+wrie operands.** `uint8_t i_insinfo.readWriteOpCnt`.
-* **_I_'s read+write operands**.  `ReaderOp i_insinfo.readWriteOps[3]`
 
+| **Property**                            | **Type**       | **Accessed using**    |
+|-----------------------------------------|----------------|-----------------------|
+| *I*'s memory address                    | `uint64_t`     | `i_readerins.addr`    |
+| *I*'s size (in bytes)                   | `uint8_t`      | `i_readerins.binSize` |
+| *I*'s binary representation             | `uint8_t [15]` | `i_readerins.binary`  |
+| *I*'s thread id                         | `uint32_t`     | `i_readerins.tid`     |
+| *I*'s assembly code representation      | `char [128]`   | `i_insinfo.mnemonic`  |
+| *I*'s class (see below)                 | `xed_iclass_enum_t` | `i_insinfo.insClass`|
+| The number of *I*'s source operands     | `uint8_t`      | `i_insinfo.srcOpCnt`  |
+| *I*'s source operands                   | `ReaderOp [3]` | `i_insinfo.srcOps`    |
+| The number of *I*'s destination operands| `uint8_t`      | `i_insinfo.dstOpCnt`  |
+| *I*'s destination operands              | `ReaderOp [3]` | `i_insinfo.dstOps`    |
+| The number of *I*'s read+write operands | `uint8_t`      | `i_insinfo.readWriteOpCnt`|
+| *I*'s read+write operands               | `ReaderOp [3]` | `i_insinfo.readWriteOps`|
 
+**Note:** The class of an instruction (e.g., MOVE, CALL, etc.) is defined as an `enum`
+in the file `$XED_ROOT/obj/xed-iclass-enum.h`. See [../README.md](../README.md) for more information about `XED_ROOT`.
 
 For example, client code to print out the address and mnemonic of each executed instruction would be something like the following (code shown earlier, e.g., to initialize XED, is omited to reduce clutter):
 
