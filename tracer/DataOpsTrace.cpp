@@ -1200,16 +1200,18 @@ void endFile() {
         trace_strm.avail_in = 1;
         unsigned char numSkippedChar = (unsigned char) numSkipped;
         trace_strm.next_in = &numSkippedChar;
-        trace_strm.avail_out = BUF_SIZE;
-        trace_strm.next_out = out;
-        ret = deflate(&trace_strm, Z_FINISH);
-        assert(ret != Z_STREAM_ERROR);
-        have = BUF_SIZE - trace_strm.avail_out;
-        if (fwrite(out, 1, have, traceFile) != have || ferror(traceFile)) {
-            (void)deflateEnd(&trace_strm);
-            fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
-            exit(1);
-        }
+        do {
+            trace_strm.avail_out = BUF_SIZE;
+            trace_strm.next_out = out;
+            ret = deflate(&trace_strm, Z_FINISH);
+            assert(ret != Z_STREAM_ERROR);
+            have = BUF_SIZE - trace_strm.avail_out;
+            if (fwrite(out, 1, have, traceFile) != have || ferror(traceFile)) {
+                (void)deflateEnd(&trace_strm);
+                fprintf(stderr, "ERROR: fwrite failed to write correct output length\n");
+                exit(1);
+            }
+        } while (trace_strm.avail_out == 0 || ret != Z_STREAM_END);
         assert(trace_strm.avail_in == 0); // Check that we wrote all of numSkipped
         assert(ret == Z_STREAM_END); // Check that the compression stream ended correctly
         int deflateRet = deflateEnd(&trace_strm);
